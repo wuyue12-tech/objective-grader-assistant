@@ -485,6 +485,13 @@ function save(){
   const slim={...DB, students:DB.students.map(s=>{const c={...s};delete c.omrDebugImg;return c;})};
   try{ localStorage.setItem(DB_KEY,JSON.stringify(slim)); }catch(e){}
 }
+function mergeStudentRecord(oldS,newS){
+  if(!oldS) return newS;
+  const merged={...oldS,...newS};
+  if(!merged.omrDebugImg && oldS.omrDebugImg) merged.omrDebugImg=oldS.omrDebugImg;
+  if(!merged.omrDebugImg && newS.omrDebugImg) merged.omrDebugImg=newS.omrDebugImg;
+  return merged;
+}
 
 const TF_LBL={'T':'✓','F':'✗'};
 
@@ -818,6 +825,8 @@ function renderGradeResult(){
     if(s.omrDebugImg){
       html+=`<div style="margin-top:10px;font-size:11px;color:var(--mute);">识别核对图（绿圈=识别为涂黑）</div>
         <img src="${s.omrDebugImg}" style="width:100%;border:1px solid var(--line);border-radius:6px;margin-top:4px;">`;
+    }else if(s.srcFile){
+      html+=`<p class="mini" style="margin-top:8px;color:var(--gold);">本条记录暂无核对图。若页面刷新过，请重新上传该答题卡；系统会优先保留本轮识别生成的核对图。</p>`;
     }
     html+='</div>';
   });
@@ -2035,7 +2044,7 @@ async function handleOMRFiles(files){
     }else{
       k = 'file:'+(s.srcFile||s.id);
     }
-    byKey[k]=s;
+    byKey[k]=mergeStudentRecord(byKey[k],s);
   });
   DB.students = Object.values(byKey);
   save();
