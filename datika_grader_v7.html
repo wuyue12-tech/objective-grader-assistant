@@ -1796,7 +1796,7 @@ function sampleBubbleMark(imgData, w, h, cx, cy, radius, searchRadius){
       if(ox*ox+oy*oy<=sr*sr) offsets.push({x:ox,y:oy});
     }
   }
-  let best={gray:255, score:0, darkRatio:0, sx:cx, sy:cy};
+  let best={gray:255, score:0, rawScore:0, darkRatio:0, sx:cx, sy:cy, dist:0};
   offsets.forEach(o=>{
     const tx=cx+o.x, ty=cy+o.y;
     let sum=0, cnt=0, dark=0, veryDark=0;
@@ -1819,9 +1819,11 @@ function sampleBubbleMark(imgData, w, h, cx, cy, radius, searchRadius){
     const darkRatio=dark/cnt;
     const veryDarkRatio=veryDark/cnt;
     const darkness=Math.max(0, 235-gray);
-    const score=darkness + darkRatio*95 + veryDarkRatio*55;
+    const rawScore=darkness + darkRatio*95 + veryDarkRatio*55;
+    const dist=Math.sqrt(o.x*o.x+o.y*o.y);
+    const score=rawScore - (dist/Math.max(1,sr))*34;
     if(score>best.score){
-      best={gray, score, darkRatio, sx:tx, sy:ty};
+      best={gray, score, rawScore, darkRatio, sx:tx, sy:ty, dist};
     }
   });
   return best;
@@ -1875,7 +1877,7 @@ async function recognizeOMR(file){
   function add(pos, tag){
     const p=applyH(H_mat, pos.cx, pos.cy);
     const mark=sampleBubbleMark(imgData, cw, ch, p.x, p.y, sampleR, searchR);
-    allBubbles.push({...pos, tag, gray:mark.gray, score:mark.score, darkRatio:mark.darkRatio, sx:mark.sx, sy:mark.sy, baseX:p.x, baseY:p.y});
+    allBubbles.push({...pos, tag, gray:mark.gray, score:mark.score, rawScore:mark.rawScore, darkRatio:mark.darkRatio, sx:mark.sx, sy:mark.sy, baseX:p.x, baseY:p.y, dist:mark.dist});
     return mark.gray;
   }
   // 学号
@@ -1918,7 +1920,8 @@ async function recognizeOMR(file){
     const ranked=[...candidates].sort((a,b)=>b.score-a.score);
     const first=ranked[0], second=ranked[1];
     if(!first || (!isFilledBubble(first) && !isProminentSingle(first, second))) return '';
-    if(second && isFilledBubble(second) && first.score-second.score<Math.max(18, first.score*0.12)) return '?';
+    const secondNearCenter = second && second.dist <= searchR*0.55;
+    if(second && secondNearCenter && isFilledBubble(second) && first.score-second.score<Math.max(18, first.score*0.12)) return '?';
     return first.value;
   }
 
