@@ -565,17 +565,18 @@ function saveKey(){
   if(!kTF.length && !kCh.length){ toast('请至少录入一种题型的答案'); return; }
   DB.scoreTF=sTF; DB.scoreChoice=sCh;
   DB.keyTF=kTF; DB.keyChoice=kCh;
-  DB.tplTFCount=kTF.length;
-  DB.tplChoiceCount=kCh.length;
   DB.saved=true;
   // 重新批改已有学生
   DB.students.forEach(regrade);
   save();
   syncTemplateControls();
   renderKeyPreview();
+  const tplCounts=getQCounts();
+  const mismatch = tplCounts.nTF!==kTF.length || tplCounts.nCh!==kCh.length;
   document.getElementById('keySaved').textContent=
-    `✓ 已保存：判断 ${kTF.length} 题 × ${sTF} 分 ＋ 选择 ${kCh.length} 题 × ${sCh} 分 ＝ 总分 ${kTF.length*sTF+kCh.length*sCh}`;
-  toast('标准答案已保存');
+    `✓ 已保存：判断 ${kTF.length} 题 × ${sTF} 分 ＋ 选择 ${kCh.length} 题 × ${sCh} 分 ＝ 总分 ${kTF.length*sTF+kCh.length*sCh}` +
+    (mismatch ? `；注意：模板题量为判断 ${tplCounts.nTF} 题、选择 ${tplCounts.nCh} 题` : '');
+  toast(mismatch ? '答案数量和模板题量不一致，请检查' : '标准答案已保存');
 }
 function renderKeyPreview(){
   if(!DB.saved){ document.getElementById('keyPreview').style.display='none'; return; }
@@ -818,6 +819,10 @@ function renderGradeResult(){
   if(!DB.students.length){ box.innerHTML=''; return; }
   const warnCount=DB.students.filter(s=>s.parseWarn).length;
   let html='<div class="card"><h2><span class="num">2</span>批改结果</h2>';
+  const tplCounts=getQCounts();
+  if(tplCounts.nTF!==DB.keyTF.length || tplCounts.nCh!==DB.keyChoice.length){
+    html+=`<p class="mini" style="color:var(--gold);font-weight:700;">注意：当前识别按模板题量“判断 ${tplCounts.nTF} 题、选择 ${tplCounts.nCh} 题”定位；标准答案为“判断 ${DB.keyTF.length} 题、选择 ${DB.keyChoice.length} 题”。如果红圈歪，请先到「模板」页核对题量。</p>`;
+  }
   if(warnCount){
     html+=`<p class="mini" style="color:var(--gold);font-weight:700;">⚠ ${warnCount} 名学生识别有异常，已标黄，请点开核对。</p>`;
   }
@@ -1195,9 +1200,6 @@ const TPL={
   bubbleStroke:1.2,
 };
 function getQCounts(source='template'){
-  if(source==='recognition' && DB.saved){
-    return { nTF: DB.keyTF.length, nCh: DB.keyChoice.length };
-  }
   const fallbackTF=DB.saved ? DB.keyTF.length : 8;
   const fallbackCh=DB.saved ? DB.keyChoice.length : 20;
   return {
@@ -2003,13 +2005,13 @@ async function recognizeOMR(file){
   if(!H_mat) throw new Error('透视矫正失败，请重新拍照（确保答题卡正面拍摄、四角清晰）');
 
   // 4. 自适应灰度阈值：用所有圆圈区域的灰度分布
-  const positions=computeBubblePositions('recognition');
+  const positions=computeBubblePositions();
   // 扫描图上每个像素相当于模板坐标系的多少？
   // 估算：从 TL→TR 的扫描距离 / 模板距离
   const dxScan=fids.TR.x-fids.TL.x;
   const dxTpl=tplCorners[1].x - tplCorners[0].x;
   const pxPerPt = Math.abs(dxScan/dxTpl);
-  const M=getTemplateMetrics('recognition');
+  const M=getTemplateMetrics();
   const sampleR = Math.max(3, positions.bubbleR * pxPerPt * 0.72); // 圆内为主
   const maxSearchPt = Math.min(M.chOptGap, M.tfOptGap) * 0.44;
   const searchR = Math.max(3, Math.min(positions.bubbleR * 0.95, maxSearchPt) * pxPerPt); // 允许涂到圈边外，但不越到相邻选项
