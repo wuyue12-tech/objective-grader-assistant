@@ -552,7 +552,7 @@ function renderKeyPreview(){
     const a=DB.keyTF[i];
     const cell=document.createElement('div');
     cell.className='qcell tf';
-    cell.innerHTML=`<div class="qn">判${i+1}</div><div class="opts">
+    cell.innerHTML=`<div class="qn">第${i+1}题</div><div class="opts">
       <div class="opt ${a==='T'?'on':''}" onclick="setKeyTF(${i},'T')">${TF_LBL.T}</div>
       <div class="opt ${a==='F'?'on':''}" onclick="setKeyTF(${i},'F')">${TF_LBL.F}</div>
     </div>`;
@@ -563,7 +563,7 @@ function renderKeyPreview(){
     const a=DB.keyChoice[i];
     const cell=document.createElement('div');
     cell.className='qcell';
-    let h=`<div class="qn">选${i+1}</div><div class="opts">`;
+    let h=`<div class="qn">第${DB.keyTF.length+i+1}题</div><div class="opts">`;
     for(const o of 'ABCD'){
       h+=`<div class="opt ${a===o?'on':''}" onclick="setKeyChoice(${i},'${o}')">${o}</div>`;
     }
@@ -796,7 +796,7 @@ function renderGradeResult(){
     if(s.parseWarn) html+=`<p class="mini" style="color:var(--gold);">⚠ ${s.parseWarn}</p>`;
     // 判断题答题点阵
     if(DB.keyTF.length){
-      html+='<div style="margin:6px 0 3px;font-size:11px;color:var(--mute);">判断题</div><div>';
+      html+=`<div style="margin:6px 0 3px;font-size:11px;color:var(--mute);">判断题（第1-${DB.keyTF.length}题）</div><div>`;
       for(let i=0;i<DB.keyTF.length;i++){
         const a=(s.tfAns[i]||'').trim();
         let cls,show;
@@ -804,12 +804,13 @@ function renderGradeResult(){
         else if(a==='?'){ cls='bad'; show='?'; }
         else if(a===DB.keyTF[i]){ cls='ok'; show=TF_LBL[a]||a; }
         else { cls='no'; show=TF_LBL[a]||a; }
-        html+=`<span class="ansdot ${cls}" title="第${i+1}判 标准答案${TF_LBL[DB.keyTF[i]]}">${show}</span>`;
+        html+=`<span class="ansdot ${cls}" title="${questionLabel('tf',i)} 标准答案${TF_LBL[DB.keyTF[i]]}">${show}</span>`;
       }
       html+='</div>';
     }
     if(DB.keyChoice.length){
-      html+='<div style="margin:6px 0 3px;font-size:11px;color:var(--mute);">选择题</div><div>';
+      const first=DB.keyTF.length+1, last=DB.keyTF.length+DB.keyChoice.length;
+      html+=`<div style="margin:6px 0 3px;font-size:11px;color:var(--mute);">选择题（第${first}-${last}题）</div><div>`;
       for(let i=0;i<DB.keyChoice.length;i++){
         const a=(s.choiceAns[i]||'').trim();
         let cls,show;
@@ -817,7 +818,7 @@ function renderGradeResult(){
         else if(a==='?'){ cls='bad'; show='?'; }
         else if(a===DB.keyChoice[i]){ cls='ok'; show=a; }
         else { cls='no'; show=a; }
-        html+=`<span class="ansdot ${cls}" title="第${i+1}选 标准答案${DB.keyChoice[i]}">${show}</span>`;
+        html+=`<span class="ansdot ${cls}" title="${questionLabel('choice',i)} 标准答案${DB.keyChoice[i]}">${show}</span>`;
       }
       html+='</div>';
     }
@@ -830,7 +831,7 @@ function renderGradeResult(){
     }
     html+='</div>';
   });
-  html+='</div>';
+  html+='<div class="divider"></div><button class="btn-sm btn-danger" style="width:100%" onclick="clearStudents()">清空批改记录</button></div>';
   box.innerHTML=html;
 }
 function toggleDetail(i){
@@ -859,7 +860,7 @@ function renderList(){
   html+='<div class="divider"></div>'+
     '<button class="btn-ghost" onclick="exportCSV()">导出 Excel 表 (.csv)</button>'+
     '<div style="height:8px;"></div>'+
-    '<button class="btn-sm btn-danger" style="width:100%" onclick="clearStudents()">清空本次成绩</button>'+
+    '<button class="btn-sm btn-danger" style="width:100%" onclick="clearStudents()">清空批改记录</button>'+
     '</div>';
   box.innerHTML=html;
 }
@@ -874,6 +875,12 @@ function csvCell(s){
 function answerShow(type,a){
   if(!a) return '空';
   return type==='tf' ? (TF_LBL[a]||a) : a;
+}
+function questionNo(type,qIdx){
+  return type==='tf' ? qIdx+1 : DB.keyTF.length+qIdx+1;
+}
+function questionLabel(type,qIdx){
+  return `第${questionNo(type,qIdx)}题`;
 }
 function buildQuestionStats(){
   const ss=DB.students, n=ss.length, out=[];
@@ -892,7 +899,7 @@ function buildQuestionStats(){
     const main=wrongEntries[0]||['',0];
     out.push({
       qIdx,type,key,
-      label:`${type==='tf'?'判':'选'}${qIdx+1}`,
+      label:questionLabel(type,qIdx),
       right,
       pct:n?right/n:0,
       wrongCount:n-right,
@@ -986,18 +993,20 @@ function renderStats(){
 function exportCSV(){
   const hot=new Set(buildQuestionStats().filter(q=>q.wrongCount>0).sort((a,b)=>b.wrongCount-a.wrongCount || a.pct-b.pct).slice(0,8).map(q=>q.label));
   let csv='学号,姓名,得分,判断对,选择对,总题数,高频错题';
-  for(let i=0;i<DB.keyTF.length;i++) csv+=`,判${i+1}`;
-  for(let i=0;i<DB.keyChoice.length;i++) csv+=`,选${i+1}`;
+  for(let i=0;i<DB.keyTF.length;i++) csv+=`,${questionLabel('tf',i)}`;
+  for(let i=0;i<DB.keyChoice.length;i++) csv+=`,${questionLabel('choice',i)}`;
   csv+='\n';
   [...DB.students].sort((a,b)=>b.score-a.score).forEach(s=>{
     const wrongLabels=[];
     for(let i=0;i<DB.keyTF.length;i++){
       const a=(s.tfAns[i]||'').trim();
-      if(a!==DB.keyTF[i] && hot.has(`判${i+1}`)) wrongLabels.push(`判${i+1}`);
+      const label=questionLabel('tf',i);
+      if(a!==DB.keyTF[i] && hot.has(label)) wrongLabels.push(label);
     }
     for(let i=0;i<DB.keyChoice.length;i++){
       const a=(s.choiceAns[i]||'').trim();
-      if(a!==DB.keyChoice[i] && hot.has(`选${i+1}`)) wrongLabels.push(`选${i+1}`);
+      const label=questionLabel('choice',i);
+      if(a!==DB.keyChoice[i] && hot.has(label)) wrongLabels.push(label);
     }
     csv+=[
       csvCell(s.sid||''),
@@ -1026,11 +1035,11 @@ function exportCSV(){
   toast('已导出');
 }
 function clearStudents(){
-  if(!confirm('清空本次成绩？标准答案保留。')) return;
+  if(!confirm('清空所有批改记录？标准答案和名册会保留。')) return;
   DB.students=[]; save();
   const fs=document.getElementById('fileStatus'); if(fs) fs.innerHTML='';
-  renderGradeResult(); renderList();
-  toast('已清空');
+  renderGradeResult(); renderList(); renderStats();
+  toast('已清空批改记录');
 }
 
 /* ==================== 模式切换 ==================== */
@@ -1309,7 +1318,7 @@ function buildTemplateSVG(){
       const r=Math.floor(i/chPerRow), c=i%chPerRow;
       const cellX = marginX + 5 + c*chCellW;
       const cellY = chStartY + r*chRowH;
-      svg+=`<text x="${cellX}" y="${cellY+bubbleR*0.6}" font-size="${M.qFont}" font-weight="bold">${i+1}.</text>`;
+      svg+=`<text x="${cellX}" y="${cellY+bubbleR*0.6}" font-size="${M.qFont}" font-weight="bold">${nTF+i+1}.</text>`;
       'ABCD'.split('').forEach((opt,k)=>{
         const cx=cellX+22+k*M.chOptGap, cy=cellY+bubbleR*0.35;
         svg+=`<circle cx="${cx}" cy="${cy}" r="${bubbleR-0.5}" fill="#fff" stroke="#444" stroke-width="1"/>`;
