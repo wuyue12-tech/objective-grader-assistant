@@ -1148,6 +1148,34 @@ function getQCounts(){
   // 未保存答案时才使用默认示例题数（8 判 + 20 选）
   return { nTF: 8, nCh: 20 };
 }
+function getTemplateMetrics(){
+  const {nTF,nCh}=getQCounts();
+  const total=nTF+nCh;
+  let scale=1;
+  if(total<=12) scale=1.6;
+  else if(total<=24) scale=1.38;
+  else if(total<=40) scale=1.18;
+  const fit=(v,min,max)=>Math.max(min,Math.min(max,v));
+  const bubbleR=fit(TPL.bubbleR*scale,8,12);
+  return {
+    scale,
+    bubbleR,
+    titleFont:fit(15*scale,15,22),
+    subFont:fit(8*scale,8,11),
+    infoFont:fit(9.5*scale,9.5,13),
+    smallFont:fit(7.5*scale,7.5,10),
+    digitFont:fit(8.5*scale,8.5,11.5),
+    sectionFont:fit(10.5*scale,10.5,15),
+    qFont:fit(9.5*scale,9.5,14),
+    optFont:fit(8.5*scale,8.5,12),
+    sidColW:fit(17*scale,17,21),
+    sidRowH:fit(17*scale,17,21),
+    tfRowH:fit(32*scale,32,48),
+    chRowH:fit(32*scale,32,46),
+    tfOptGap:fit(22*scale,22,31),
+    chOptGap:fit(17*scale,17,24),
+  };
+}
 function normalizePerPage(n){
   n=parseInt(n,10);
   return [1,2,4,6,8].includes(n) ? n : 2;
@@ -1175,8 +1203,10 @@ function cardInnerSVG(){
 function buildTemplateSVG(){
   const W = TPL.W;
   const H = TPL.H;
-  const {marginX,marginY,fidSize,sidCols,sidDigits,bubbleR}=TPL;
+  const {marginX,marginY,fidSize,sidCols,sidDigits}=TPL;
   const {nTF,nCh}=getQCounts();
+  const M=getTemplateMetrics();
+  const bubbleR=M.bubbleR;
   let svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" style="background:#fff;font-family:'Helvetica','Noto Sans SC',sans-serif;">`;
 
   // 四角定位方块
@@ -1192,29 +1222,31 @@ function buildTemplateSVG(){
 
   // 标题行
   const titleY = marginY + 14;
-  svg+=`<text x="${W/2}" y="${titleY}" text-anchor="middle" font-size="15" font-weight="bold">答  题  卡</text>`;
-  svg+=`<text x="${W/2}" y="${titleY+14}" text-anchor="middle" font-size="8" fill="#888">用 2B 铅笔将选项框完全涂黑；保持答题卡清洁、平整、不折叠</text>`;
+  svg+=`<text x="${W/2}" y="${titleY}" text-anchor="middle" font-size="${M.titleFont}" font-weight="bold">答  题  卡</text>`;
+  svg+=`<text x="${W/2}" y="${titleY+M.titleFont}" text-anchor="middle" font-size="${M.subFont}" fill="#888">用 2B 铅笔将选项框完全涂黑；保持答题卡清洁、平整、不折叠</text>`;
 
   // —— 上部信息区：学号矩阵（左）+ 姓名/班级/日期（右）并排 ——
-  const infoTop = titleY + 22;
+  const infoTop = titleY + 8 + M.titleFont;
 
   // 学号矩阵
   const sidX = marginX + 20;
-  const sidColW = 17;
-  const sidRowH = 17;
-  svg+=`<text x="${sidX}" y="${infoTop+9}" font-size="9.5" font-weight="bold">学号</text>`;
-  svg+=`<text x="${sidX+38}" y="${infoTop+9}" font-size="7.5" fill="#888">（每列涂一个数字）</text>`;
+  const sidColW = M.sidColW;
+  const sidRowH = M.sidRowH;
+  svg+=`<text x="${sidX}" y="${infoTop+9}" font-size="${M.infoFont}" font-weight="bold">学号</text>`;
+  svg+=`<text x="${sidX+38}" y="${infoTop+9}" font-size="${M.smallFont}" fill="#888">（每列涂一个数字）</text>`;
   // 位号
   for(let c=0;c<sidCols;c++){
-    svg+=`<text x="${sidX+c*sidColW+sidColW/2}" y="${infoTop+20}" text-anchor="middle" font-size="7.5" fill="#aaa">${c+1}</text>`;
+    svg+=`<text x="${sidX+c*sidColW+sidColW/2}" y="${infoTop+20}" text-anchor="middle" font-size="${M.smallFont}" fill="#aaa">${c+1}</text>`;
   }
   // 气泡矩阵
   for(let d=0;d<sidDigits;d++){
     for(let c=0;c<sidCols;c++){
       const cx=sidX+c*sidColW+sidColW/2;
       const cy=infoTop+28+d*sidRowH;
+      if(c===0){
+        svg+=`<text x="${sidX-10}" y="${cy+M.digitFont*0.35}" text-anchor="middle" font-size="${M.digitFont}" fill="#555">${d}</text>`;
+      }
       svg+=`<circle cx="${cx}" cy="${cy}" r="${bubbleR-0.5}" fill="#fff" stroke="#444" stroke-width="1"/>`;
-      svg+=`<text x="${cx}" y="${cy+3}" text-anchor="middle" font-size="8.5" fill="#666">${d}</text>`;
     }
   }
   const sidMatrixBottom = infoTop + 28 + (sidDigits-1)*sidRowH + bubbleR + 4;
@@ -1227,7 +1259,7 @@ function buildTemplateSVG(){
   infoLabels.forEach((lbl,i)=>{
     const rowH = infoAreaH / infoLabels.length;
     const yBase = infoTop + i*rowH + rowH*0.62;
-    svg+=`<text x="${rightX}" y="${yBase}" font-size="9.5" font-weight="bold">${lbl}</text>`;
+    svg+=`<text x="${rightX}" y="${yBase}" font-size="${M.infoFont}" font-weight="bold">${lbl}</text>`;
     svg+=`<line x1="${rightX+22}" y1="${yBase+2}" x2="${rightX+rightW}" y2="${yBase+2}" stroke="#bbb" stroke-width="0.7"/>`;
   });
 
@@ -1238,22 +1270,23 @@ function buildTemplateSVG(){
 
   // —— 判断题区（nTF>0 时绘制）——
   if(nTF > 0){
-    svg+=`<text x="${marginX+5}" y="${curY}" font-size="10.5" font-weight="bold">一、判断题（T = 正确，F = 错误）</text>`;
-    const tfStartY = curY + 11;
+    svg+=`<text x="${marginX+5}" y="${curY}" font-size="${M.sectionFont}" font-weight="bold">一、判断题（T = 正确，F = 错误）</text>`;
+    const tfStartY = curY + M.sectionFont + 3;
     const tfPerRow = 4;
     const tfCellW = (W - marginX*2 - 10) / tfPerRow;
-    const tfRowH = 27;
+    const tfRowH = M.tfRowH;
     for(let i=0;i<nTF;i++){
       const r=Math.floor(i/tfPerRow), c=i%tfPerRow;
       const cellX = marginX + 5 + c*tfCellW;
       const cellY = tfStartY + r*tfRowH;
-      svg+=`<text x="${cellX}" y="${cellY+13}" font-size="9.5" font-weight="bold">${i+1}.</text>`;
-      const tx=cellX+22, ty=cellY+10;
+      const ty=cellY+M.optFont+bubbleR+3;
+      svg+=`<text x="${cellX}" y="${ty+M.qFont*0.35}" font-size="${M.qFont}" font-weight="bold">${i+1}.</text>`;
+      const tx=cellX+26;
+      svg+=`<text x="${tx}" y="${cellY+M.optFont}" text-anchor="middle" font-size="${M.optFont}" fill="#555">T</text>`;
       svg+=`<circle cx="${tx}" cy="${ty}" r="${bubbleR-0.5}" fill="#fff" stroke="#444" stroke-width="1"/>`;
-      svg+=`<text x="${tx}" y="${ty+3}" text-anchor="middle" font-size="8.5" fill="#666">T</text>`;
-      const fx=cellX+44, fy=cellY+10;
+      const fx=cellX+26+M.tfOptGap, fy=ty;
+      svg+=`<text x="${fx}" y="${cellY+M.optFont}" text-anchor="middle" font-size="${M.optFont}" fill="#555">F</text>`;
       svg+=`<circle cx="${fx}" cy="${fy}" r="${bubbleR-0.5}" fill="#fff" stroke="#444" stroke-width="1"/>`;
-      svg+=`<text x="${fx}" y="${fy+3}" text-anchor="middle" font-size="8.5" fill="#666">F</text>`;
     }
     curY = tfStartY + Math.ceil(nTF/tfPerRow)*tfRowH + 6;
   }
@@ -1261,20 +1294,21 @@ function buildTemplateSVG(){
   // —— 选择题区（nCh>0 时绘制）——
   if(nCh > 0){
     const secLabel = nTF > 0 ? '二' : '一';
-    svg+=`<text x="${marginX+5}" y="${curY}" font-size="10.5" font-weight="bold">${secLabel}、选择题（每题只涂一个选项）</text>`;
-    const chStartY = curY + 11;
+    svg+=`<text x="${marginX+5}" y="${curY}" font-size="${M.sectionFont}" font-weight="bold">${secLabel}、选择题（每题只涂一个选项）</text>`;
+    const chStartY = curY + M.sectionFont + 3;
     const chPerRow = 4;
     const chCellW = (W - marginX*2 - 10) / chPerRow;
-    const chRowH = 26;
+    const chRowH = M.chRowH;
     for(let i=0;i<nCh;i++){
       const r=Math.floor(i/chPerRow), c=i%chPerRow;
       const cellX = marginX + 5 + c*chCellW;
       const cellY = chStartY + r*chRowH;
-      svg+=`<text x="${cellX}" y="${cellY+13}" font-size="9.5" font-weight="bold">${i+1}.</text>`;
+      const cy=cellY+M.optFont+bubbleR+3;
+      svg+=`<text x="${cellX}" y="${cy+M.qFont*0.35}" font-size="${M.qFont}" font-weight="bold">${i+1}.</text>`;
       'ABCD'.split('').forEach((opt,k)=>{
-        const cx=cellX+22+k*17, cy=cellY+10;
+        const cx=cellX+26+k*M.chOptGap;
+        svg+=`<text x="${cx}" y="${cellY+M.optFont}" text-anchor="middle" font-size="${M.optFont}" fill="#555">${opt}</text>`;
         svg+=`<circle cx="${cx}" cy="${cy}" r="${bubbleR-0.5}" fill="#fff" stroke="#444" stroke-width="1"/>`;
-        svg+=`<text x="${cx}" y="${cy+3}" text-anchor="middle" font-size="8.5" fill="#666">${opt}</text>`;
       });
     }
     curY = chStartY + Math.ceil(nCh/chPerRow)*chRowH;
@@ -1536,11 +1570,13 @@ function svgToPngDataURL(svgStr, targetWidth){
 /* 给定模板坐标系（与 buildTemplateSVG 一致），算出每个圆圈的中心坐标。
    学生扫描图经透视矫正后映射到这个坐标系，对每个圆圈采样灰度判断是否涂黑。 */
 function computeBubblePositions(){
-  const {W,H,marginX,marginY,sidCols,sidDigits,bubbleR}=TPL;
+  const {W,H,marginX,marginY,sidCols,sidDigits}=TPL;
   const {nTF,nCh}=getQCounts();
+  const M=getTemplateMetrics();
+  const bubbleR=M.bubbleR;
   const sidX=marginX+20;
-  const sidY=marginY+36;
-  const sidColW=17, sidRowH=17;
+  const sidY=marginY+22+M.titleFont;
+  const sidColW=M.sidColW, sidRowH=M.sidRowH;
 
   // 学号圆圈：sid[col][digit] = {cx, cy}
   const sid=[];
@@ -1553,35 +1589,37 @@ function computeBubblePositions(){
   // 判断题
   const sidBottom = sidY + 28 + (sidDigits-1)*sidRowH + bubbleR + 4;
   const tfY = sidBottom + 16;
-  const tfStartY = tfY + 11;
+  const tfStartY = tfY + M.sectionFont + 3;
   const tfPerRow = 4;
   const tfCellW = (W - marginX*2 - 10) / tfPerRow;
-  const tfRowH = 27;
+  const tfRowH = M.tfRowH;
   const tf=[];
   for(let i=0;i<nTF;i++){
     const r=Math.floor(i/tfPerRow), c=i%tfPerRow;
     const cellX = marginX + 5 + c*tfCellW;
     const cellY = tfStartY + r*tfRowH;
+    const cy=cellY+M.optFont+bubbleR+3;
     tf.push({
-      T:{cx:cellX+22, cy:cellY+10},
-      F:{cx:cellX+44, cy:cellY+10},
+      T:{cx:cellX+26, cy},
+      F:{cx:cellX+26+M.tfOptGap, cy},
     });
   }
   const tfBottom = nTF>0 ? tfStartY + Math.ceil(nTF/tfPerRow)*tfRowH + 6 : sidBottom + 16;
   // 选择题
   const chY = tfBottom;
-  const chStartY = chY + 11;
+  const chStartY = chY + M.sectionFont + 3;
   const chPerRow = 4;
   const chCellW = (W - marginX*2 - 10) / chPerRow;
-  const chRowH = 26;
+  const chRowH = M.chRowH;
   const ch=[];
   for(let i=0;i<nCh;i++){
     const r=Math.floor(i/chPerRow), c=i%chPerRow;
     const cellX = marginX + 5 + c*chCellW;
     const cellY = chStartY + r*chRowH;
+    const cy=cellY+M.optFont+bubbleR+3;
     const opts={};
     'ABCD'.split('').forEach((opt,k)=>{
-      opts[opt]={cx:cellX+22+k*17, cy:cellY+10};
+      opts[opt]={cx:cellX+26+k*M.chOptGap, cy};
     });
     ch.push(opts);
   }
