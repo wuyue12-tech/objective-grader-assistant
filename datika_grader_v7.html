@@ -1651,11 +1651,11 @@ function findFiducials(imgData, w, h){
   const meanG=sum/(w*h);
   const thr = Math.max(60, meanG*0.5);
 
-  // 在指定矩形区域内，做连通分量分析，返回最大连通块的重心和面积
-  function biggestBlob(x0,y0,x1,y1){
+  // 在指定矩形区域内，做连通分量分析，返回候选黑色方块。
+  function findBlobs(x0,y0,x1,y1){
     const rw=x1-x0, rh=y1-y0;
     const visited=new Uint8Array(rw*rh);
-    let best=null;
+    const blobs=[];
     const stack=new Int32Array(rw*rh*2);
     for(let y=0;y<rh;y++){
       for(let x=0;x<rw;x++){
@@ -1691,19 +1691,79 @@ function findFiducials(imgData, w, h){
         // 填充率：连通块面积 / 外接矩形面积 应较高（实心方块）
         const fill = cnt / (bw*bh);
         if(fill < 0.5) continue;
-        if(!best || cnt>best.count){
-          best={x:sx/cnt, y:sy/cnt, count:cnt, bw, bh};
-        }
+        blobs.push({x:sx/cnt, y:sy/cnt, count:cnt, bw, bh, fill});
       }
     }
+    return blobs.sort((a,b)=>b.count-a.count);
+  }
+  function pickNearCorner(blobs, cornerX, cornerY){
+    let best=null, bestScore=-Infinity;
+    blobs.forEach(b=>{
+      const dist=Math.hypot(b.x-cornerX,b.y-cornerY);
+      const score=b.count - dist*0.18;
+      if(score>bestScore){ bestScore=score; best=b; }
+    });
     return best;
   }
+  function pickLikeFiducial(blobs, expected, cornerX, cornerY){
+    if(!expected) return pickNearCorner(blobs, cornerX, cornerY);
+    let best=null, bestScore=-Infinity;
+    blobs.forEach(b=>{
+      const size=(b.bw+b.bh)/2;
+      const sizeRatio=size/expected.size;
+      const areaRatio=b.count/expected.count;
+      if(sizeRatio<0.55 || sizeRatio>1.85) return;
+      if(areaRatio<0.28 || areaRatio>3.4) return;
+      const dist=Math.hypot(b.x-cornerX,b.y-cornerY);
+      const sizePenalty=Math.abs(Math.log(sizeRatio))*120;
+      const score=b.count - dist*0.16 - sizePenalty;
+      if(score>bestScore){ bestScore=score; best=b; }
+    });
+    return best;
+  }
+  function estimateBottomFromTop(TL,TR){
+    const {W,H,marginX,marginY,fidSize}=TPL;
+    const tplW = (W-marginX-fidSize/2) - (marginX+fidSize/2);
+    const tplH = (H-marginY-fidSize/2) - (marginY+fidSize/2);
+    const vx=TR.x-TL.x, vy=TR.y-TL.y;
+    const len=Math.max(1, Math.hypot(vx,vy));
+    let nx=-vy/len, ny=vx/len;
+    if(ny<0){ nx=-nx; ny=-ny; }
+    const hLen=len*(tplH/tplW);
+    return {
+      BL:{x:TL.x+nx*hLen, y:TL.y+ny*hLen, estimated:true},
+      BR:{x:TR.x+nx*hLen, y:TR.y+ny*hLen, estimated:true}
+    };
+  }
+  function geometryLooksGood(TL,TR,BL,BR){
+    if(!TL||!TR||!BL||!BR) return false;
+    const topW=Math.hypot(TR.x-TL.x,TR.y-TL.y);
+    const bottomW=Math.hypot(BR.x-BL.x,BR.y-BL.y);
+    const leftH=Math.hypot(BL.x-TL.x,BL.y-TL.y);
+    const rightH=Math.hypot(BR.x-TR.x,BR.y-TR.y);
+    if(bottomW<topW*0.55 || bottomW>topW*1.55) return false;
+    if(leftH<topW*0.75 || rightH<topW*0.75) return false;
+    if(BL.y<TL.y+topW*0.55 || BR.y<TR.y+topW*0.55) return false;
+    return true;
+  }
   const qw=Math.floor(w*0.30), qh=Math.floor(h*0.30);
-  const TL=biggestBlob(0,0,qw,qh);
-  const TR=biggestBlob(w-qw,0,w,qh);
-  const BL=biggestBlob(0,h-qh,qw,h);
-  const BR=biggestBlob(w-qw,h-qh,w,h);
-  if(!TL||!TR||!BL||!BR) return null;
+  const tlBlobs=findBlobs(0,0,qw,qh);
+  const trBlobs=findBlobs(w-qw,0,w,qh);
+  const blBlobs=findBlobs(0,h-qh,qw,h);
+  const brBlobs=findBlobs(w-qw,h-qh,w,h);
+  const TL=pickNearCorner(tlBlobs, 0, 0);
+  const TR=pickNearCorner(trBlobs, w, 0);
+  if(!TL||!TR) return null;
+  const expected={
+    size:((TL.bw+TL.bh+TR.bw+TR.bh)/4),
+    count:(TL.count+TR.count)/2,
+  };
+  let BL=pickLikeFiducial(blBlobs, expected, 0, h);
+  let BR=pickLikeFiducial(brBlobs, expected, w, h);
+  if(!geometryLooksGood(TL,TR,BL,BR)){
+    const est=estimateBottomFromTop(TL,TR);
+    BL=est.BL; BR=est.BR;
+  }
   return {TL,TR,BL,BR};
 }
 
