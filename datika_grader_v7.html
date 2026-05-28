@@ -398,6 +398,24 @@
       </p>
 
       <div class="field">
+        <label>题目数量（无需先输入标准答案）</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <input type="number" id="tplTFCount" min="0" max="80" step="1" value="8" oninput="setTemplateCounts()" placeholder="判断题数量">
+          <input type="number" id="tplChoiceCount" min="0" max="120" step="1" value="20" oninput="setTemplateCounts()" placeholder="选择题数量">
+        </div>
+        <p class="mini" id="tplCountHint">模板可先按题量生成；标准答案稍后再录入也可以。</p>
+      </div>
+
+      <div class="field">
+        <label>填涂样式</label>
+        <div class="seg">
+          <button class="on" id="shapeBtnCircle" onclick="setMarkShape('circle')">圆圈</button>
+          <button id="shapeBtnSquare" onclick="setMarkShape('square')">方框</button>
+        </div>
+        <p class="mini" id="shapeHint">圆圈兼容当前答题卡；方框更适合学生涂满，但请同一场考试使用同一种模板。</p>
+      </div>
+
+      <div class="field">
         <label>每页 A4 排几张答题卡（节省纸张）</label>
         <div class="seg">
           <button id="ppBtn1" onclick="setPerPage(1)">1张</button>
@@ -417,7 +435,7 @@
       <div style="height:8px;"></div>
       <button class="btn-ghost" onclick="downloadTemplateSVG()">下载 SVG 模板</button>
       <p class="mini" style="margin-top:8px;">
-        模板含：7 位学号填涂区 + 判断题 + 选择题，题数根据「标准答案」页自动调整。<br>
+        模板含：7 位学号填涂区 + 判断题 + 选择题，题数可在本页直接设置，也可由「标准答案」自动同步。<br>
         流程：选择每页数量 → 下载/打印 → 裁开 → 学生填涂 → 扫描裁开后的单张或多页 PDF 上传。
       </p>
       <p class="mini" style="margin-top:10px;text-align:center;color:var(--mute);">© WuYue · 答题卡批改助手</p>
@@ -465,6 +483,9 @@ let DB={
   saved:false,
   mode:'text',  // 'text' | 'omr'
   perPage:2,    // 1 | 2 | 4 | 6 | 8 张答题卡/A4
+  tplTFCount:null,
+  tplChoiceCount:null,
+  markShape:'circle', // circle | square
   roster:[],    // [{id:'001', name:'张三'}, ...]
   students:[]   // {id, name, sid, tfAns, choiceAns, tfCorrect, choiceCorrect, score, totalScore, parseWarn, omrDebugImg?}
 };
@@ -523,6 +544,11 @@ function normalizeTF(s){
     .replace(/错的|错误的|错误|错|×|✗|✘|FALSE|NO/g,'F')
     .replace(/[^TF]/g,'');
 }
+function normalizeCount(n, fallback, max){
+  n=parseInt(n,10);
+  if(Number.isNaN(n)) return fallback;
+  return Math.max(0, Math.min(max, n));
+}
 
 function saveKey(){
   const sTF=parseFloat(document.getElementById('scoreTF').value)||0;
@@ -532,10 +558,13 @@ function saveKey(){
   if(!kTF.length && !kCh.length){ toast('请至少录入一种题型的答案'); return; }
   DB.scoreTF=sTF; DB.scoreChoice=sCh;
   DB.keyTF=kTF; DB.keyChoice=kCh;
+  DB.tplTFCount=kTF.length;
+  DB.tplChoiceCount=kCh.length;
   DB.saved=true;
   // 重新批改已有学生
   DB.students.forEach(regrade);
   save();
+  syncTemplateControls();
   renderKeyPreview();
   document.getElementById('keySaved').textContent=
     `✓ 已保存：判断 ${kTF.length} 题 × ${sTF} 分 ＋ 选择 ${kCh.length} 题 × ${sCh} 分 ＝ 总分 ${kTF.length*sTF+kCh.length*sCh}`;
@@ -1159,12 +1188,12 @@ const TPL={
   bubbleStroke:1.2,
 };
 function getQCounts(){
-  // 已保存答案：严格按实际题数，允许某种题型为 0（只有一种题型的情况）
-  if(DB.saved){
-    return { nTF: DB.keyTF.length, nCh: DB.keyChoice.length };
-  }
-  // 未保存答案时才使用默认示例题数（8 判 + 20 选）
-  return { nTF: 8, nCh: 20 };
+  const fallbackTF=DB.saved ? DB.keyTF.length : 8;
+  const fallbackCh=DB.saved ? DB.keyChoice.length : 20;
+  return {
+    nTF: normalizeCount(DB.tplTFCount, fallbackTF, 80),
+    nCh: normalizeCount(DB.tplChoiceCount, fallbackCh, 120),
+  };
 }
 function getTemplateMetrics(){
   const {nTF,nCh}=getQCounts();
@@ -1216,6 +1245,19 @@ function cardInnerSVG(){
   const full=buildTemplateSVG();
   return full.replace(/^<svg[^>]*>/,'').replace(/<\/svg>\s*$/,'');
 }
+function markShape(){
+  return DB.markShape==='square' ? 'square' : 'circle';
+}
+function drawMark(svg, cx, cy, r, label, fontSize){
+  if(markShape()==='square'){
+    const s=(r-0.5)*2;
+    svg+=`<rect x="${cx-s/2}" y="${cy-s/2}" width="${s}" height="${s}" rx="1.2" ry="1.2" fill="#fff" stroke="#444" stroke-width="1"/>`;
+  }else{
+    svg+=`<circle cx="${cx}" cy="${cy}" r="${r-0.5}" fill="#fff" stroke="#444" stroke-width="1"/>`;
+  }
+  svg+=`<text x="${cx}" y="${cy+fontSize*0.35}" text-anchor="middle" font-size="${fontSize}" fill="#666">${label}</text>`;
+  return svg;
+}
 /* buildTemplateSVG(): 生成单张答题卡 SVG。所有打印数量都缩放同一张卡，
    保证裁开后的答题卡和识别坐标完全一致。 */
 function buildTemplateSVG(){
@@ -1261,8 +1303,7 @@ function buildTemplateSVG(){
     for(let c=0;c<sidCols;c++){
       const cx=sidX+c*sidColW+sidColW/2;
       const cy=infoTop+28+d*sidRowH;
-      svg+=`<circle cx="${cx}" cy="${cy}" r="${bubbleR-0.5}" fill="#fff" stroke="#444" stroke-width="1"/>`;
-      svg+=`<text x="${cx}" y="${cy+M.digitFont*0.35}" text-anchor="middle" font-size="${M.digitFont}" fill="#666">${d}</text>`;
+      svg=drawMark(svg, cx, cy, bubbleR, d, M.digitFont);
     }
   }
   const sidMatrixBottom = infoTop + 28 + (sidDigits-1)*sidRowH + bubbleR + 4;
@@ -1297,11 +1338,9 @@ function buildTemplateSVG(){
       const cellY = tfStartY + r*tfRowH;
       svg+=`<text x="${cellX}" y="${cellY+bubbleR*0.6}" font-size="${M.qFont}" font-weight="bold">${i+1}.</text>`;
       const tx=cellX+22, ty=cellY+bubbleR*0.35;
-      svg+=`<circle cx="${tx}" cy="${ty}" r="${bubbleR-0.5}" fill="#fff" stroke="#444" stroke-width="1"/>`;
-      svg+=`<text x="${tx}" y="${ty+M.optFont*0.35}" text-anchor="middle" font-size="${M.optFont}" fill="#666">T</text>`;
+      svg=drawMark(svg, tx, ty, bubbleR, 'T', M.optFont);
       const fx=cellX+22+M.tfOptGap, fy=ty;
-      svg+=`<circle cx="${fx}" cy="${fy}" r="${bubbleR-0.5}" fill="#fff" stroke="#444" stroke-width="1"/>`;
-      svg+=`<text x="${fx}" y="${fy+M.optFont*0.35}" text-anchor="middle" font-size="${M.optFont}" fill="#666">F</text>`;
+      svg=drawMark(svg, fx, fy, bubbleR, 'F', M.optFont);
     }
     curY = tfStartY + Math.ceil(nTF/tfPerRow)*tfRowH + 6;
   }
@@ -1321,8 +1360,7 @@ function buildTemplateSVG(){
       svg+=`<text x="${cellX}" y="${cellY+bubbleR*0.6}" font-size="${M.qFont}" font-weight="bold">${nTF+i+1}.</text>`;
       'ABCD'.split('').forEach((opt,k)=>{
         const cx=cellX+22+k*M.chOptGap, cy=cellY+bubbleR*0.35;
-        svg+=`<circle cx="${cx}" cy="${cy}" r="${bubbleR-0.5}" fill="#fff" stroke="#444" stroke-width="1"/>`;
-        svg+=`<text x="${cx}" y="${cy+M.optFont*0.35}" text-anchor="middle" font-size="${M.optFont}" fill="#666">${opt}</text>`;
+        svg=drawMark(svg, cx, cy, bubbleR, opt, M.optFont);
       });
     }
     curY = chStartY + Math.ceil(nCh/chPerRow)*chRowH;
@@ -1368,6 +1406,22 @@ function renderTemplatePreview(){
   if(!box) return;
   box.innerHTML=buildTemplateSheetSVG(DB.perPage);
 }
+function syncTemplateControls(){
+  const tf=document.getElementById('tplTFCount');
+  const ch=document.getElementById('tplChoiceCount');
+  if(tf) tf.value=normalizeCount(DB.tplTFCount, DB.keyTF.length||8, 80);
+  if(ch) ch.value=normalizeCount(DB.tplChoiceCount, DB.keyChoice.length||20, 120);
+  const shape=markShape();
+  const circleBtn=document.getElementById('shapeBtnCircle');
+  const squareBtn=document.getElementById('shapeBtnSquare');
+  if(circleBtn) circleBtn.classList.toggle('on', shape==='circle');
+  if(squareBtn) squareBtn.classList.toggle('on', shape==='square');
+  const hint=document.getElementById('tplCountHint');
+  if(hint){
+    const {nTF,nCh}=getQCounts();
+    hint.textContent=`当前模板：判断题 ${nTF} 题，选择题 ${nCh} 题，共 ${nTF+nCh} 题。`;
+  }
+}
 function downloadTemplateSVG(){
   const n=normalizePerPage(DB.perPage);
   const svg=buildTemplateSheetSVG(n);
@@ -1377,6 +1431,22 @@ function downloadTemplateSVG(){
   a.href=url; a.download=`答题卡模板_${n}张每页.svg`; a.click();
   URL.revokeObjectURL(url);
   toast('已下载');
+}
+
+function setTemplateCounts(){
+  const tf=document.getElementById('tplTFCount');
+  const ch=document.getElementById('tplChoiceCount');
+  DB.tplTFCount=normalizeCount(tf ? tf.value : DB.tplTFCount, 8, 80);
+  DB.tplChoiceCount=normalizeCount(ch ? ch.value : DB.tplChoiceCount, 20, 120);
+  save();
+  syncTemplateControls();
+  renderTemplatePreview();
+}
+function setMarkShape(shape){
+  DB.markShape = shape==='square' ? 'square' : 'circle';
+  save();
+  syncTemplateControls();
+  renderTemplatePreview();
 }
 
 /* 每页张数布局选择 */
@@ -1394,6 +1464,7 @@ function setPerPage(n){
     8:'A4 横向 8 张，适合非常短的小练习；裁开后再扫描上传。',
   };
   document.getElementById('ppHint').textContent=hints[n]||hints[2];
+  syncTemplateControls();
   renderTemplatePreview();
 }
 
