@@ -1750,36 +1750,24 @@ function applyH(h, x, y){
   };
 }
 
-// 在扫描图上、给定圆心，采样一个小窗口的灰度特征
-function sampleBubble(imgData, w, h, cx, cy, radius){
+// 在扫描图上、给定圆心，采样一个小窗口的平均灰度
+function sampleGray(imgData, w, h, cx, cy, radius){
   const data=imgData.data;
-  let sum=0, cnt=0, dark=0, veryDark=0, minG=255;
+  let sum=0, cnt=0;
   const r=Math.max(2, Math.round(radius));
   const x0=Math.max(0,Math.round(cx-r)), x1=Math.min(w,Math.round(cx+r));
   const y0=Math.max(0,Math.round(cy-r)), y1=Math.min(h,Math.round(cy+r));
   for(let y=y0;y<y1;y++){
     for(let x=x0;x<x1;x++){
       const dx=x-cx, dy=y-cy;
-      const d2=dx*dx+dy*dy;
-      // 避开圆心的印刷字母/数字，也避开最外侧圆圈线，只看学生实际填涂区域。
-      if(d2 <= (r*0.86)*(r*0.86) && d2 >= (r*0.34)*(r*0.34)){
+      if(dx*dx+dy*dy <= r*r){
         const i=(y*w+x)*4;
-        const g=(data[i]+data[i+1]+data[i+2])/3;
-        sum += g;
-        if(g<170) dark++;
-        if(g<120) veryDark++;
-        if(g<minG) minG=g;
+        sum += (data[i]+data[i+1]+data[i+2])/3;
         cnt++;
       }
     }
   }
-  const gray=cnt>0 ? sum/cnt : 255;
-  return {
-    gray,
-    minG,
-    darkRatio:cnt ? dark/cnt : 0,
-    veryDarkRatio:cnt ? veryDark/cnt : 0,
-  };
+  return cnt>0 ? sum/cnt : 255;
 }
 
 // 主入口：识别一张图
@@ -1826,10 +1814,9 @@ async function recognizeOMR(file){
   const allBubbles=[];
   function add(pos, tag){
     const p=applyH(H_mat, pos.cx, pos.cy);
-    const sample=sampleBubble(imgData, cw, ch, p.x, p.y, sampleR);
-    const item={...pos, tag, ...sample, sx:p.x, sy:p.y, score:0, filled:false};
-    allBubbles.push(item);
-    return item;
+    const g=sampleGray(imgData, cw, ch, p.x, p.y, sampleR);
+    allBubbles.push({...pos, tag, gray:g, sx:p.x, sy:p.y});
+    return g;
   }
   // 学号
   const sidGrays=[];
@@ -1850,90 +1837,56 @@ async function recognizeOMR(file){
     }
   }
 
-  // 阈值：同时看平均灰度、深色像素比例和同题相对差异。
-  // 这样学生没有完全涂满、铅笔偏浅时，也比单一灰度阈值更容易识别。
+  // 阈值：用所有圆圈灰度的统计量
+  // 涂黑 vs 未涂的灰度差异通常很明显。取中位数为 base，base*0.7 为阈值
   const sorted=[...allBubbles.map(b=>b.gray)].sort((a,b)=>a-b);
   const median=sorted[Math.floor(sorted.length/2)];
-  const lowQuartile=sorted[Math.floor(sorted.length*0.25)] || median;
-  const thr = Math.min(median * 0.82, lowQuartile + 18);
-  allBubbles.forEach(b=>{
-    const grayScore=Math.max(0,(median-b.gray)/Math.max(1,median));
-    const darkScore=b.darkRatio*1.7 + b.veryDarkRatio*2.2;
-    const minScore=Math.max(0,(median-b.minG)/Math.max(1,median))*0.35;
-    b.score=grayScore + darkScore + minScore;
-    b.filled = b.gray < thr && (b.score > 0.24 || b.darkRatio > 0.16 || b.veryDarkRatio > 0.055);
-  });
+  const thr = median * 0.65; // 涂黑的灰度通常 < 中位数 65%
 
-  const byTag={};
-  allBubbles.forEach(b=>{ byTag[b.tag]=b; });
-
-  function isFilled(b){ return !!(b && b.filled); }
-  function chooseOne(items, opts){
-    opts=opts||{};
-    const minScore=opts.minScore==null ? 0.28 : opts.minScore;
-    const gap=opts.gap==null ? 0.08 : opts.gap;
-    const sortedItems=[...items].sort((a,b)=>b.score-a.score);
-    const best=sortedItems[0], second=sortedItems[1];
-    if(!best) return {value:' ', warn:false};
-    const groupAvg=items.reduce((a,b)=>a+b.gray,0)/items.length;
-    const groupDarkAvg=items.reduce((a,b)=>a+b.darkRatio,0)/items.length;
-    const groupVeryAvg=items.reduce((a,b)=>a+b.veryDarkRatio,0)/items.length;
-    const scoreGap = second ? best.score - second.score : best.score;
-    const grayDelta = groupAvg - best.gray;
-    const darkDelta = best.darkRatio - groupDarkAvg;
-    const veryDelta = best.veryDarkRatio - groupVeryAvg;
-    const relativeDark =
-      grayDelta > Math.max(12, median*0.055) ||
-      darkDelta > 0.055 ||
-      veryDelta > 0.025;
-    const strong =
-      relativeDark &&
-      scoreGap > gap &&
-      (best.score>=minScore || best.gray < median*0.88 || best.darkRatio > groupDarkAvg+0.07);
-    if(!strong) return {value:' ', warn:false};
-    if(second && second.score>=minScore && Math.abs(best.score-second.score)<gap*1.15){
-      return {value:'?', warn:true};
-    }
-    best.filled=true;
-    return {value:best.value, warn:false};
-  }
+  function isFilled(g){ return g < thr; }
 
   // 5. 解码学号
   let sid='';
   let sidWarn=false;
   for(let c=0;c<positions.sid.length;c++){
-    const items=[];
+    let pick=-1, minG=999, secondG=999;
     for(let d=0;d<positions.sid[c].length;d++){
-      const b=byTag[`sid${c}${d}`];
-      items.push({...b, value:String(d)});
+      const b=allBubbles.find(b=>b.tag===`sid${c}${d}`);
+      if(b.gray<minG){ secondG=minG; minG=b.gray; pick=d; }
+      else if(b.gray<secondG){ secondG=b.gray; }
     }
-    const picked=chooseOne(items,{minScore:0.18,gap:0.05});
-    if(picked.value==='?' || picked.value===' '){
-      sid+=picked.value==='?' ? '?' : '_';
-      sidWarn=true;
+    if(isFilled(minG) && (secondG-minG > median*0.1 || !isFilled(secondG))){
+      sid+=pick;
+    }else if(isFilled(minG) && isFilled(secondG)){
+      sid+='?'; sidWarn=true; // 多涂
     }else{
-      sid+=picked.value;
+      sid+='_'; sidWarn=true; // 未涂
     }
   }
 
   // 6. 解码判断题
   let tfAns='';
   for(let i=0;i<positions.tf.length;i++){
-    const items=[
-      {...byTag[`tf${i}T`], value:'T'},
-      {...byTag[`tf${i}F`], value:'F'},
-    ];
-    tfAns+=chooseOne(items,{minScore:0.18,gap:0.045}).value;
+    const gT=allBubbles.find(b=>b.tag===`tf${i}T`).gray;
+    const gF=allBubbles.find(b=>b.tag===`tf${i}F`).gray;
+    const fT=isFilled(gT), fF=isFilled(gF);
+    if(fT && fF) tfAns+='?';
+    else if(fT) tfAns+='T';
+    else if(fF) tfAns+='F';
+    else tfAns+=' ';
   }
 
   // 7. 解码选择题
   let chAns='';
   for(let i=0;i<positions.ch.length;i++){
-    const items=[];
+    const filled=[];
     for(const opt of 'ABCD'){
-      items.push({...byTag[`ch${i}${opt}`], value:opt});
+      const g=allBubbles.find(b=>b.tag===`ch${i}${opt}`).gray;
+      if(isFilled(g)) filled.push(opt);
     }
-    chAns+=chooseOne(items,{minScore:0.18,gap:0.05}).value;
+    if(filled.length===1) chAns+=filled[0];
+    else if(filled.length>1) chAns+='?';
+    else chAns+=' ';
   }
 
   // 8. 画调试图（圆圈位置 + 是否涂黑）
@@ -1943,7 +1896,7 @@ async function recognizeOMR(file){
   dctx.drawImage(canvas,0,0);
   dctx.lineWidth=2;
   allBubbles.forEach(b=>{
-    dctx.strokeStyle = isFilled(b) ? '#22c55e' : 'rgba(200,69,58,0.4)';
+    dctx.strokeStyle = isFilled(b.gray) ? '#22c55e' : 'rgba(200,69,58,0.4)';
     dctx.beginPath();
     dctx.arc(b.sx, b.sy, sampleR, 0, Math.PI*2);
     dctx.stroke();
