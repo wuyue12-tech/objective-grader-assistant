@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>答题卡批改助手 V8</title>
+<title>客观题批改助手</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -284,7 +284,7 @@
 <body>
 
 <header>
-  <div class="brand"><span class="seal">批</span>答题卡批改助手 V8</div>
+  <div class="brand"><span class="seal">批</span>客观题批改助手</div>
 </header>
 
 <main>
@@ -398,7 +398,7 @@
       </p>
 
       <div class="field">
-        <label>题目数量（无需先输入标准答案）</label>
+        <label>题目数量</label>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
           <input type="number" id="tplTFCount" min="0" max="80" step="1" value="8" oninput="setTemplateCounts()" placeholder="判断题数量">
           <input type="number" id="tplChoiceCount" min="0" max="120" step="1" value="20" oninput="setTemplateCounts()" placeholder="选择题数量">
@@ -438,7 +438,7 @@
         模板含：7 位学号填涂区 + 判断题 + 选择题，题数可在本页直接设置，也可由「标准答案」自动同步。<br>
         流程：选择每页数量 → 下载/打印 → 裁开 → 学生填涂 → 扫描裁开后的单张或多页 PDF 上传。
       </p>
-      <p class="mini" style="margin-top:10px;text-align:center;color:var(--mute);">© WuYue · 答题卡批改助手</p>
+      <p class="mini" style="margin-top:10px;text-align:center;color:var(--mute);">© WuYue · 客观题批改助手</p>
     </div>
   </section>
 
@@ -455,9 +455,9 @@
 </main>
 
 <nav>
+  <button data-v="tpl" onclick="go('tpl',this)"><span class="ic">📋</span>模板</button>
   <button class="on" data-v="key" onclick="go('key',this)"><span class="ic">✎</span>标准答案</button>
   <button data-v="grade" onclick="go('grade',this)"><span class="ic">✓</span>批改</button>
-  <button data-v="tpl" onclick="go('tpl',this)"><span class="ic">📋</span>模板</button>
   <button data-v="list" onclick="go('list',this)"><span class="ic">☷</span>成绩单</button>
   <button data-v="stats" onclick="go('stats',this)"><span class="ic">▦</span>统计</button>
 </nav>
@@ -1369,7 +1369,7 @@ function buildTemplateSVG(){
   }
 
   // 底部版权
-  svg+=`<text x="${W/2}" y="${H-marginY+10}" text-anchor="middle" font-size="7.5" fill="#bbb">© WuYue · 答题卡批改助手</text>`;
+  svg+=`<text x="${W/2}" y="${H-marginY+10}" text-anchor="middle" font-size="7.5" fill="#bbb">© WuYue · 客观题批改助手</text>`;
 
   svg+='</svg>';
   return svg;
