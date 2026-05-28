@@ -1904,111 +1904,6 @@ function applyH(h, x, y){
   };
 }
 
-function solveLinearSystem(A, b){
-  const n=b.length;
-  for(let i=0;i<n;i++){
-    let mx=Math.abs(A[i][i]), mxRow=i;
-    for(let k=i+1;k<n;k++){
-      if(Math.abs(A[k][i])>mx){ mx=Math.abs(A[k][i]); mxRow=k; }
-    }
-    if(mx<1e-9) return null;
-    [A[i],A[mxRow]]=[A[mxRow],A[i]];
-    [b[i],b[mxRow]]=[b[mxRow],b[i]];
-    const pivot=A[i][i];
-    for(let j=i;j<n;j++) A[i][j]/=pivot;
-    b[i]/=pivot;
-    for(let k=0;k<n;k++){
-      if(k===i) continue;
-      const f=A[k][i];
-      for(let j=i;j<n;j++) A[k][j]-=f*A[i][j];
-      b[k]-=f*b[i];
-    }
-  }
-  return b;
-}
-
-function locatePrintedMarkCenter(imgData, w, h, cx, cy, radius, searchRadius){
-  const data=imgData.data;
-  const rr=Math.max(4, Math.round(radius));
-  const sr=Math.max(3, Math.round(searchRadius));
-  const step=Math.max(2, Math.round(rr*0.35));
-  let best=null;
-  for(let oy=-sr;oy<=sr;oy+=step){
-    for(let ox=-sr;ox<=sr;ox+=step){
-      if(ox*ox+oy*oy>sr*sr) continue;
-      const tx=cx+ox, ty=cy+oy;
-      let ringDark=0, ringCnt=0, centerDark=0, centerCnt=0;
-      const x0=Math.max(0,Math.round(tx-rr*1.35)), x1=Math.min(w,Math.round(tx+rr*1.35));
-      const y0=Math.max(0,Math.round(ty-rr*1.35)), y1=Math.min(h,Math.round(ty+rr*1.35));
-      for(let y=y0;y<y1;y++){
-        for(let x=x0;x<x1;x++){
-          const dx=x-tx, dy=y-ty;
-          const d=Math.sqrt(dx*dx+dy*dy);
-          const i=(y*w+x)*4;
-          const g=(data[i]+data[i+1]+data[i+2])/3;
-          if(d>=rr*0.58 && d<=rr*1.28){
-            ringCnt++;
-            if(g<185) ringDark++;
-          }else if(d<rr*0.55){
-            centerCnt++;
-            if(g<170) centerDark++;
-          }
-        }
-      }
-      if(!ringCnt) continue;
-      const ringRatio=ringDark/ringCnt;
-      const centerRatio=centerCnt ? centerDark/centerCnt : 0;
-      const dist=Math.sqrt(ox*ox+oy*oy);
-      const score=ringRatio*100 + centerRatio*35 - (dist/sr)*8;
-      if(!best || score>best.score){
-        best={x:tx,y:ty,score,ringRatio,centerRatio,dist};
-      }
-    }
-  }
-  if(!best || best.ringRatio<0.035) return null;
-  return best;
-}
-
-function solveAffineFromPairs(pairs){
-  if(pairs.length<6) return null;
-  const build=(items)=>{
-    const A=Array.from({length:6},()=>Array(6).fill(0));
-    const b=Array(6).fill(0);
-    items.forEach(({x,y,tx,ty})=>{
-      const rowX=[x,y,1,0,0,0];
-      const rowY=[0,0,0,x,y,1];
-      rowX.forEach((v,i)=>{
-        b[i]+=v*tx;
-        rowX.forEach((u,j)=>{ A[i][j]+=v*u; });
-      });
-      rowY.forEach((v,i)=>{
-        b[i]+=v*ty;
-        rowY.forEach((u,j)=>{ A[i][j]+=v*u; });
-      });
-    });
-    return solveLinearSystem(A,b);
-  };
-  const median=(arr)=>{
-    const s=[...arr].sort((a,b)=>a-b);
-    return s[Math.floor(s.length/2)] || 0;
-  };
-  const mdx=median(pairs.map(p=>p.tx-p.x));
-  const mdy=median(pairs.map(p=>p.ty-p.y));
-  const filtered=pairs.filter(p=>{
-    const dx=p.tx-p.x-mdx, dy=p.ty-p.y-mdy;
-    return Math.hypot(dx,dy)<Math.max(10, p.radius*1.25);
-  });
-  return build(filtered.length>=6 ? filtered : pairs);
-}
-
-function applyAffine(a, x, y){
-  if(!a) return {x,y};
-  return {
-    x:a[0]*x + a[1]*y + a[2],
-    y:a[3]*x + a[4]*y + a[5],
-  };
-}
-
 // 在扫描图上、给定圆心，采样一个小窗口的平均灰度
 function sampleGray(imgData, w, h, cx, cy, radius){
   const data=imgData.data;
@@ -2118,31 +2013,11 @@ async function recognizeOMR(file){
   const sampleR = Math.max(3, positions.bubbleR * pxPerPt * 0.72); // 圆内为主
   const maxSearchPt = Math.min(M.chOptGap, M.tfOptGap) * 0.44;
   const searchR = Math.max(3, Math.min(positions.bubbleR * 0.95, maxSearchPt) * pxPerPt); // 允许涂到圈边外，但不越到相邻选项
-  const alignSearchR = Math.max(searchR, sampleR*1.65);
-
-  // 四角定位只能做粗校正；扫描、裁切或底部定位点偏差会让下面题目整体歪。
-  // 再用答题卡上实际印出来的圆圈/长方框做一次全局吸附校正。
-  const alignPairs=[];
-  function addAlignCandidate(pos){
-    const p=applyH(H_mat, pos.cx, pos.cy);
-    const q=locatePrintedMarkCenter(imgData, cw, ch, p.x, p.y, sampleR, alignSearchR);
-    if(q){
-      alignPairs.push({x:p.x,y:p.y,tx:q.x,ty:q.y,radius:sampleR,score:q.score});
-    }
-  }
-  positions.sid.forEach(col=>col.forEach(addAlignCandidate));
-  positions.tf.forEach(q=>{ addAlignCandidate(q.T); addAlignCandidate(q.F); });
-  positions.ch.forEach(q=>{ 'ABCD'.split('').forEach(opt=>addAlignCandidate(q[opt])); });
-  const affineCorrection=solveAffineFromPairs(alignPairs);
-  function mapTemplatePoint(pos){
-    const p=applyH(H_mat, pos.cx, pos.cy);
-    return applyAffine(affineCorrection, p.x, p.y);
-  }
 
   // 收集所有圆圈灰度
   const allBubbles=[];
   function add(pos, tag){
-    const p=mapTemplatePoint(pos);
+    const p=applyH(H_mat, pos.cx, pos.cy);
     const mark=sampleBubbleMark(imgData, cw, ch, p.x, p.y, sampleR, searchR);
     allBubbles.push({...pos, tag, gray:mark.gray, score:mark.score, rawScore:mark.rawScore, darkRatio:mark.darkRatio, sx:mark.sx, sy:mark.sy, baseX:p.x, baseY:p.y, dist:mark.dist});
     return mark.gray;
