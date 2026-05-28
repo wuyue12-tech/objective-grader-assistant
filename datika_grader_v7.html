@@ -1782,6 +1782,51 @@ function sampleGray(imgData, w, h, cx, cy, radius){
   return cnt>0 ? sum/cnt : 255;
 }
 
+// 选项识别不能只盯圆心：学生常常涂偏、涂到圈边外，扫描也会有轻微透视误差。
+// 这里在圆心附近做小范围搜索，返回“最像涂点”的位置和得分。
+function sampleBubbleMark(imgData, w, h, cx, cy, radius, searchRadius){
+  const data=imgData.data;
+  const rr=Math.max(3, Math.round(radius));
+  const sr=Math.max(1, Math.round(searchRadius));
+  const step=Math.max(2, Math.round(rr*0.55));
+  const offsets=[{x:0,y:0}];
+  for(let oy=-sr;oy<=sr;oy+=step){
+    for(let ox=-sr;ox<=sr;ox+=step){
+      if(ox===0 && oy===0) continue;
+      if(ox*ox+oy*oy<=sr*sr) offsets.push({x:ox,y:oy});
+    }
+  }
+  let best={gray:255, score:0, darkRatio:0, sx:cx, sy:cy};
+  offsets.forEach(o=>{
+    const tx=cx+o.x, ty=cy+o.y;
+    let sum=0, cnt=0, dark=0, veryDark=0;
+    const x0=Math.max(0,Math.round(tx-rr)), x1=Math.min(w,Math.round(tx+rr));
+    const y0=Math.max(0,Math.round(ty-rr)), y1=Math.min(h,Math.round(ty+rr));
+    for(let y=y0;y<y1;y++){
+      for(let x=x0;x<x1;x++){
+        const dx=x-tx, dy=y-ty;
+        if(dx*dx+dy*dy<=rr*rr){
+          const i=(y*w+x)*4;
+          const g=(data[i]+data[i+1]+data[i+2])/3;
+          sum+=g; cnt++;
+          if(g<165) dark++;
+          if(g<115) veryDark++;
+        }
+      }
+    }
+    if(!cnt) return;
+    const gray=sum/cnt;
+    const darkRatio=dark/cnt;
+    const veryDarkRatio=veryDark/cnt;
+    const darkness=Math.max(0, 235-gray);
+    const score=darkness + darkRatio*95 + veryDarkRatio*55;
+    if(score>best.score){
+      best={gray, score, darkRatio, sx:tx, sy:ty};
+    }
+  });
+  return best;
+}
+
 // 主入口：识别一张图
 async function recognizeOMR(file){
   // 1. 加载图片到 Canvas
@@ -1820,15 +1865,18 @@ async function recognizeOMR(file){
   const dxScan=fids.TR.x-fids.TL.x;
   const dxTpl=tplCorners[1].x - tplCorners[0].x;
   const pxPerPt = Math.abs(dxScan/dxTpl);
-  const sampleR = Math.max(3, positions.bubbleR * pxPerPt * 0.7); // 圆内 70% 区域采样
+  const M=getTemplateMetrics();
+  const sampleR = Math.max(3, positions.bubbleR * pxPerPt * 0.72); // 圆内为主
+  const maxSearchPt = Math.min(M.chOptGap, M.tfOptGap) * 0.44;
+  const searchR = Math.max(3, Math.min(positions.bubbleR * 0.95, maxSearchPt) * pxPerPt); // 允许涂到圈边外，但不越到相邻选项
 
   // 收集所有圆圈灰度
   const allBubbles=[];
   function add(pos, tag){
     const p=applyH(H_mat, pos.cx, pos.cy);
-    const g=sampleGray(imgData, cw, ch, p.x, p.y, sampleR);
-    allBubbles.push({...pos, tag, gray:g, sx:p.x, sy:p.y});
-    return g;
+    const mark=sampleBubbleMark(imgData, cw, ch, p.x, p.y, sampleR, searchR);
+    allBubbles.push({...pos, tag, gray:mark.gray, score:mark.score, darkRatio:mark.darkRatio, sx:mark.sx, sy:mark.sy, baseX:p.x, baseY:p.y});
+    return mark.gray;
   }
   // 学号
   const sidGrays=[];
@@ -1849,27 +1897,46 @@ async function recognizeOMR(file){
     }
   }
 
-  // 阈值：用所有圆圈灰度的统计量
-  // 涂黑 vs 未涂的灰度差异通常很明显。取中位数为 base，base*0.7 为阈值
+  // 阈值：综合“灰度”和“墨迹得分”。得分能处理涂偏、浅涂、未完全涂满。
   const sorted=[...allBubbles.map(b=>b.gray)].sort((a,b)=>a-b);
   const median=sorted[Math.floor(sorted.length/2)];
-  const thr = median * 0.65; // 涂黑的灰度通常 < 中位数 65%
+  const sortedScores=[...allBubbles.map(b=>b.score)].sort((a,b)=>a-b);
+  const medianScore=sortedScores[Math.floor(sortedScores.length/2)];
+  const p90Score=sortedScores[Math.floor(sortedScores.length*0.9)] || medianScore;
+  const scoreThr=Math.max(medianScore+22, medianScore*1.35, p90Score*0.48);
+  const grayThr=median*0.9;
 
-  function isFilled(g){ return g < thr; }
+  function isFilledBubble(b){
+    return b.score>=scoreThr || (b.gray<grayThr && b.score>=medianScore+16);
+  }
+  function isProminentSingle(first, second){
+    if(!first) return false;
+    const gap = second ? first.score-second.score : first.score;
+    return first.score>=medianScore+18 && first.gray<median*0.94 && gap>Math.max(18, first.score*0.16);
+  }
+  function pickSingle(candidates){
+    const ranked=[...candidates].sort((a,b)=>b.score-a.score);
+    const first=ranked[0], second=ranked[1];
+    if(!first || (!isFilledBubble(first) && !isProminentSingle(first, second))) return '';
+    if(second && isFilledBubble(second) && first.score-second.score<Math.max(18, first.score*0.12)) return '?';
+    return first.value;
+  }
 
   // 5. 解码学号
   let sid='';
   let sidWarn=false;
   for(let c=0;c<positions.sid.length;c++){
-    let pick=-1, minG=999, secondG=999;
+    let pick=-1, bestScore=-1, secondScore=-1;
     for(let d=0;d<positions.sid[c].length;d++){
       const b=allBubbles.find(b=>b.tag===`sid${c}${d}`);
-      if(b.gray<minG){ secondG=minG; minG=b.gray; pick=d; }
-      else if(b.gray<secondG){ secondG=b.gray; }
+      if(b.score>bestScore){ secondScore=bestScore; bestScore=b.score; pick=d; }
+      else if(b.score>secondScore){ secondScore=b.score; }
     }
-    if(isFilled(minG) && (secondG-minG > median*0.1 || !isFilled(secondG))){
+    const first=allBubbles.find(b=>b.tag===`sid${c}${pick}`);
+    const second={score:secondScore, gray:255};
+    if(first && (isFilledBubble(first) || isProminentSingle(first, second)) && (bestScore-secondScore>Math.max(18, bestScore*0.12) || !isFilledBubble(second))){
       sid+=pick;
-    }else if(isFilled(minG) && isFilled(secondG)){
+    }else if(first && isFilledBubble(first) && isFilledBubble(second)){
       sid+='?'; sidWarn=true; // 多涂
     }else{
       sid+='_'; sidWarn=true; // 未涂
@@ -1879,26 +1946,20 @@ async function recognizeOMR(file){
   // 6. 解码判断题
   let tfAns='';
   for(let i=0;i<positions.tf.length;i++){
-    const gT=allBubbles.find(b=>b.tag===`tf${i}T`).gray;
-    const gF=allBubbles.find(b=>b.tag===`tf${i}F`).gray;
-    const fT=isFilled(gT), fF=isFilled(gF);
-    if(fT && fF) tfAns+='?';
-    else if(fT) tfAns+='T';
-    else if(fF) tfAns+='F';
-    else tfAns+=' ';
+    const bT=allBubbles.find(b=>b.tag===`tf${i}T`);
+    const bF=allBubbles.find(b=>b.tag===`tf${i}F`);
+    tfAns+=pickSingle([{...bT,value:'T'}, {...bF,value:'F'}]) || ' ';
   }
 
   // 7. 解码选择题
   let chAns='';
   for(let i=0;i<positions.ch.length;i++){
-    const filled=[];
+    const candidates=[];
     for(const opt of 'ABCD'){
-      const g=allBubbles.find(b=>b.tag===`ch${i}${opt}`).gray;
-      if(isFilled(g)) filled.push(opt);
+      const b=allBubbles.find(b=>b.tag===`ch${i}${opt}`);
+      candidates.push({...b, value:opt});
     }
-    if(filled.length===1) chAns+=filled[0];
-    else if(filled.length>1) chAns+='?';
-    else chAns+=' ';
+    chAns+=pickSingle(candidates) || ' ';
   }
 
   // 8. 画调试图（圆圈位置 + 是否涂黑）
@@ -1908,7 +1969,7 @@ async function recognizeOMR(file){
   dctx.drawImage(canvas,0,0);
   dctx.lineWidth=2;
   allBubbles.forEach(b=>{
-    dctx.strokeStyle = isFilled(b.gray) ? '#22c55e' : 'rgba(200,69,58,0.4)';
+    dctx.strokeStyle = isFilledBubble(b) ? '#22c55e' : 'rgba(200,69,58,0.4)';
     dctx.beginPath();
     dctx.arc(b.sx, b.sy, sampleR, 0, Math.PI*2);
     dctx.stroke();
