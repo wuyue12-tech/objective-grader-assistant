@@ -1,0 +1,2139 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>答题卡批改助手</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;700;900&family=Noto+Sans+SC:wght@400;500;700&display=swap');
+  :root{
+    --ink:#3d3a36; --paper:#faf6f0; --paper-deep:#eee8dc;
+    --card:#fffcf8; --red:#d4613a; --green:#4a8c5c;
+    --gold:#c09a3e; --blue:#4a7fa5; --line:#ddd5c4; --mute:#9c9182;
+    --shadow:0 6px 24px rgba(100,80,50,.10);
+    --header:#6b5d4f;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  body{
+    font-family:'Noto Sans SC',sans-serif;background:var(--paper);
+    color:var(--ink);-webkit-font-smoothing:antialiased;padding-bottom:80px;min-height:100vh;
+  }
+  header{
+    background:var(--header);color:var(--paper);padding:14px 20px;
+    position:sticky;top:0;z-index:50;
+  }
+  header .brand{
+    font-family:'Noto Serif SC',serif;font-weight:900;font-size:19px;
+    display:flex;align-items:center;gap:9px;
+  }
+  header .seal{
+    width:26px;height:26px;border:2px solid var(--red);color:var(--red);
+    border-radius:5px;display:flex;align-items:center;justify-content:center;
+    font-family:'Noto Serif SC',serif;font-weight:900;font-size:13px;
+    background:rgba(200,69,58,.12);transform:rotate(-6deg);
+  }
+  main{max-width:680px;margin:0 auto;padding:14px;}
+  .view{display:none;}
+  .view.active{display:block;}
+
+  .card{
+    background:var(--card);border:1px solid var(--line);border-radius:13px;
+    padding:16px;margin-bottom:12px;box-shadow:var(--shadow);
+  }
+  .card h2{
+    font-family:'Noto Serif SC',serif;font-size:16px;font-weight:700;
+    margin-bottom:10px;display:flex;align-items:center;gap:8px;
+  }
+  .card h2 .num{
+    background:var(--red);color:#fff;width:22px;height:22px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;font-size:12px;flex:none;
+  }
+  label{font-size:12.5px;font-weight:600;display:block;margin-bottom:5px;color:var(--ink);}
+  input[type=text],input[type=number],textarea{
+    width:100%;padding:10px 12px;border:1.5px solid var(--line);border-radius:8px;
+    font-size:15px;font-family:inherit;background:#fffefb;color:var(--ink);
+  }
+  textarea{line-height:1.5;resize:vertical;}
+  input:focus,textarea:focus{outline:none;border-color:var(--blue);}
+  .row{display:flex;gap:10px;}
+  .row>*{flex:1;}
+  .field{margin-bottom:11px;}
+
+  button{font-family:inherit;cursor:pointer;border:none;border-radius:8px;font-weight:700;transition:transform .08s;}
+  button:active{transform:scale(.97);}
+  .btn-primary{
+    background:var(--red);color:#fff;padding:12px;font-size:14px;width:100%;
+    box-shadow:0 3px 10px rgba(200,69,58,.25);
+  }
+  .btn-ghost{
+    background:transparent;color:var(--blue);border:1.5px solid var(--blue);
+    padding:10px;font-size:13px;width:100%;
+  }
+  .btn-sm{padding:7px 13px;font-size:12.5px;background:var(--paper-deep);color:var(--ink);}
+  .btn-danger{background:#fff;color:var(--red);border:1.5px solid var(--red);}
+
+  /* 答案串输入 */
+  .ans-input{
+    font-family:'Noto Serif SC',serif;letter-spacing:2.5px;font-size:15px;
+    text-align:center;
+  }
+  /* 标准答案核对网格 */
+  .key-grid{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+  .qcell{
+    background:var(--paper);border:1px solid var(--line);border-radius:8px;
+    padding:5px 4px 6px;width:calc(20% - 5px);text-align:center;
+  }
+  .qcell .qn{font-size:10px;color:var(--mute);font-weight:700;margin-bottom:4px;}
+  .qcell.tf{background:rgba(63,125,82,.06);}
+  .opts{display:flex;flex-wrap:wrap;gap:2px;justify-content:center;}
+  .opt{
+    width:20px;height:20px;border-radius:50%;font-size:10px;font-weight:700;
+    border:1.2px solid var(--line);background:#fff;color:var(--mute);
+    display:flex;align-items:center;justify-content:center;cursor:pointer;
+  }
+  .opt.on{background:var(--header);color:#fff;border-color:var(--header);}
+  .qcell.tf .opt.on{background:var(--green);border-color:var(--green);}
+
+  /* 文件上传 */
+  .drop{
+    border:2px dashed var(--line);border-radius:11px;padding:22px 14px;
+    text-align:center;background:var(--paper);cursor:pointer;
+  }
+  .drop:active{background:var(--paper-deep);}
+  .drop .di{font-size:28px;display:block;margin-bottom:6px;}
+  .drop .dt{font-weight:700;font-size:14px;}
+  .drop .ds{font-size:11.5px;color:var(--mute);margin-top:4px;}
+  .filechip{
+    display:flex;align-items:center;gap:8px;background:var(--paper-deep);
+    border-radius:8px;padding:8px 10px;margin-top:10px;font-size:12.5px;
+  }
+  .filechip .fx{
+    background:var(--blue);color:#fff;border-radius:5px;width:22px;height:22px;
+    display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex:none;
+  }
+  .loading{
+    display:inline-block;width:13px;height:13px;border:2px solid var(--line);
+    border-top-color:var(--blue);border-radius:50%;animation:spin .7s linear infinite;
+    vertical-align:-2px;margin-right:6px;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  /* 学生结果 */
+  .stu-item{
+    display:flex;align-items:center;gap:9px;padding:10px 12px;
+    border:1px solid var(--line);border-radius:9px;margin-bottom:7px;background:#fffefb;
+  }
+  .stu-item .nm{font-weight:700;font-size:13.5px;flex:1;}
+  .stu-item .sub{font-size:11px;color:var(--mute);}
+  .stu-item .sc{font-family:'Noto Serif SC',serif;font-weight:900;font-size:17px;}
+  .badge{font-size:10.5px;padding:2px 7px;border-radius:18px;font-weight:700;}
+  .badge.done{background:rgba(63,125,82,.15);color:var(--green);}
+  .badge.todo{background:rgba(200,69,58,.13);color:var(--red);}
+  .badge.warn{background:rgba(184,146,63,.2);color:var(--gold);}
+
+  .ansdot{
+    display:inline-flex;align-items:center;justify-content:center;
+    width:24px;height:24px;border-radius:5px;font-size:11px;font-weight:700;
+    margin:2px;border:1px solid var(--line);
+  }
+  .ansdot.ok{background:rgba(63,125,82,.16);color:var(--green);border-color:transparent;}
+  .ansdot.no{background:rgba(200,69,58,.16);color:var(--red);border-color:transparent;}
+  .ansdot.blank{background:var(--paper-deep);color:var(--mute);}
+  .ansdot.bad{background:rgba(184,146,63,.25);color:var(--gold);border-color:transparent;font-weight:900;}
+  .detail-box{margin-top:6px;padding-top:9px;border-top:1px dashed var(--line);}
+
+  /* 统计 */
+  .score-hero{
+    text-align:center;padding:22px 16px;
+    background:linear-gradient(160deg,var(--header),#8a7060);
+    color:var(--paper);border-radius:14px;margin-bottom:11px;
+  }
+  .score-hero .big{font-family:'Noto Serif SC',serif;font-size:50px;font-weight:900;line-height:1;}
+  .score-hero .of{font-size:13px;color:#b9b09a;}
+  .score-hero .lbl{font-size:12px;margin-top:5px;}
+  .stat-row{display:flex;gap:8px;margin-bottom:11px;}
+  .stat-box{
+    flex:1;background:var(--card);border:1px solid var(--line);
+    border-radius:10px;padding:11px 6px;text-align:center;
+  }
+  .stat-box .v{font-family:'Noto Serif SC',serif;font-size:21px;font-weight:900;}
+  .stat-box .k{font-size:10px;color:var(--mute);margin-top:2px;}
+
+  .qbar{margin-bottom:10px;}
+  .qbar .top{display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;}
+  .qbar .top .pct{font-weight:700;font-family:'Noto Serif SC',serif;}
+  .track{height:11px;background:var(--paper-deep);border-radius:6px;overflow:hidden;}
+  .fill{height:100%;border-radius:6px;}
+  .qbar .meta{font-size:10.5px;color:var(--mute);margin-top:3px;}
+  .wrong-pill{
+    display:inline-block;background:rgba(200,69,58,.12);color:var(--red);
+    font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px;margin-left:4px;
+  }
+  .empty{text-align:center;color:var(--mute);font-size:12.5px;padding:24px 10px;line-height:1.7;}
+  .empty .ico{font-size:30px;display:block;margin-bottom:6px;}
+
+  nav{
+    position:fixed;bottom:0;left:0;right:0;background:var(--card);
+    border-top:1px solid var(--line);display:flex;z-index:60;
+  }
+  nav button{
+    flex:1;background:none;padding:8px 2px;border-radius:0;
+    display:flex;flex-direction:column;align-items:center;gap:2px;
+    color:var(--mute);font-weight:600;font-size:9.5px;
+  }
+  nav button .ic{font-size:16px;line-height:1;}
+  nav button.on{color:var(--red);}
+  .toast{
+    position:fixed;bottom:90px;left:50%;transform:translateX(-50%);
+    background:var(--ink);color:#fff;padding:10px 18px;border-radius:22px;
+    font-size:12.5px;font-weight:500;z-index:200;opacity:0;pointer-events:none;
+    transition:.2s;white-space:nowrap;max-width:90vw;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(-5px);}
+  .divider{height:1px;background:var(--line);margin:12px 0;}
+  .mini{font-size:11px;color:var(--mute);margin-top:6px;line-height:1.55;}
+  code{background:var(--paper-deep);padding:1px 5px;border-radius:4px;font-size:11.5px;font-family:'Noto Serif SC',serif;}
+  .seg{display:flex;background:var(--paper-deep);border-radius:8px;padding:3px;margin-bottom:11px;}
+  .seg button{flex:1;padding:7px;font-size:12px;background:none;color:var(--mute);color:var(--mute);border-radius:6px;}
+  .seg button.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.08);}
+
+  /* 填涂卡相关 */
+  .omr-canvas{
+    width:100%;background:#fff;border:1px solid var(--line);border-radius:8px;
+    margin-top:8px;display:block;
+  }
+  .roster-list{
+    max-height:180px;overflow-y:auto;border:1px solid var(--line);
+    border-radius:8px;padding:6px;margin-top:8px;background:#fff;
+  }
+  .roster-row{
+    display:flex;gap:8px;font-size:12px;padding:3px 4px;border-bottom:1px dashed var(--paper-deep);
+  }
+  .roster-row:last-child{border-bottom:none;}
+  .roster-row .rid{color:var(--mute);font-family:'Noto Serif SC',serif;min-width:60px;}
+  .roster-row .rnm{font-weight:600;}
+  .preview-box{
+    background:#fff;border:1px solid var(--line);border-radius:8px;
+    padding:8px;margin-top:8px;text-align:center;
+  }
+  .preview-box svg{max-width:100%;height:auto;}
+  #printArea{display:none;}
+  @media print{
+    @page{ size:A4 portrait; margin:0; }
+    html,body{ background:#fff !important; padding:0 !important; margin:0 !important; }
+    body *{ visibility:hidden !important; }
+    #printArea, #printArea *{ visibility:visible !important; }
+    #printArea{
+      display:block !important;
+      position:fixed; left:0; top:0;
+      width:100vw; height:100vh;
+      background:#fff; overflow:hidden;
+    }
+    #printArea .print-page{
+      display:flex;
+      padding:0; margin:0; background:#fff;
+      overflow:hidden;
+      page-break-before:avoid;
+      page-break-after:avoid;
+      page-break-inside:avoid;
+      break-before:avoid;
+      break-after:avoid;
+      break-inside:avoid;
+    }
+    /* 纵版页 */
+    #printArea .print-page.portrait{
+      width:209mm; height:296mm;
+      flex-direction:column;
+      align-items:center; justify-content:flex-start;
+    }
+    /* 横版页 */
+    #printArea .print-page.landscape{
+      width:296mm; height:209mm;
+      flex-direction:row;
+      align-items:stretch;
+    }
+    #printArea .print-page > svg{
+      width:100% !important; height:100% !important;
+      display:block !important;
+      flex:none;
+    }
+    #printArea .print-card{
+      display:flex; align-items:center; justify-content:center;
+      box-sizing:border-box; overflow:hidden; flex-shrink:0;
+    }
+    #printArea .print-card svg{
+      width:100% !important; height:100% !important;
+      display:block;
+    }
+    #printArea .cut-line{
+      width:100%; border-top:1px dashed #888;
+      position:relative; height:0;
+    }
+    #printArea .cut-line::before{
+      content:'✂  剪裁线'; position:absolute; left:50%; top:-7px;
+      transform:translateX(-50%); background:#fff; padding:0 8px;
+      font-size:9px; color:#888; font-family:sans-serif;
+    }
+    nav, header{ display:none !important; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand"><span class="seal">批</span>答题卡批改助手</div>
+</header>
+
+<main>
+
+  <!-- ============ 视图1：标准答案 ============ -->
+  <section class="view active" id="view-key">
+    <div class="card">
+      <h2><span class="num">1</span>本次作业设置</h2>
+      <div class="row">
+        <div class="field">
+          <label>判断题每题分数</label>
+          <input type="number" id="scoreTF" value="1" min="0" step="0.5">
+        </div>
+        <div class="field">
+          <label>选择题每题分数</label>
+          <input type="number" id="scoreChoice" value="2" min="0" step="0.5">
+        </div>
+      </div>
+      <div class="field">
+        <label>判断题正确答案（按顺序，对→T，错→F）</label>
+        <input type="text" id="keyTF" class="ans-input" placeholder="例：TTFFTTFF">
+      </div>
+      <div class="field">
+        <label>选择题正确答案（按顺序）</label>
+        <input type="text" id="keyChoice" class="ans-input" placeholder="例：APCDDCPAAB CDDCBBAABB">
+      </div>
+      <button class="btn-primary" onclick="saveKey()">保存标准答案</button>
+      <p class="mini" id="keySaved"></p>
+    </div>
+
+    <div class="card" id="keyPreview" style="display:none;">
+      <h2><span class="num">2</span>核对识别结果</h2>
+      <p class="mini" id="keyHint"></p>
+      <div class="key-grid" id="keyGrid"></div>
+      <p class="mini">点格子可手动修改单题。改完点上方保存。</p>
+    </div>
+  </section>
+
+  <!-- ============ 视图2：批改 ============ -->
+  <section class="view" id="view-grade">
+    <div class="card">
+      <h2><span class="num">1</span>选择答题卡类型</h2>
+      <div class="seg">
+        <button class="on" id="modeBtnText" onclick="setMode('text')">文字识别 (.docx)</button>
+        <button id="modeBtnOMR" onclick="setMode('omr')">填涂卡 (图片)</button>
+      </div>
+
+      <!-- 文字模式 -->
+      <div id="modeText">
+        <div class="drop" id="dropZone" onclick="document.getElementById('fileInput').click()">
+          <span class="di">📄</span>
+          <div class="dt">点这里选择 .docx 文件</div>
+          <div class="ds">扫描全能王导出的 Word 答题卡，含表格结构</div>
+        </div>
+        <input type="file" id="fileInput" accept=".docx" style="display:none" onchange="handleFile(this.files[0])">
+      </div>
+
+      <!-- 填涂卡模式 -->
+      <div id="modeOMR" style="display:none;">
+        <p class="mini" style="margin-bottom:8px;">
+          ① 先在「填涂卡模板」页打印答题卡 → ② 学生用 2B 铅笔填涂 → ③ 扫描成清晰图片上传
+        </p>
+        <button class="btn-ghost" onclick="go('tpl')">查看 / 下载填涂卡模板</button>
+        <div style="height:10px;"></div>
+
+        <label>学号-姓名名册</label>
+        <div class="seg" style="margin-bottom:8px;">
+          <button class="on" id="rosterTabXlsx" onclick="setRosterTab('xlsx')">上传 Excel</button>
+          <button id="rosterTabPaste" onclick="setRosterTab('paste')">直接粘贴</button>
+        </div>
+
+        <div id="rosterTabXlsxPanel">
+          <div class="drop" style="padding:14px 10px;" onclick="document.getElementById('rosterInput').click()">
+            <span class="di" style="font-size:22px;">☷</span>
+            <div class="dt" style="font-size:13px;" id="rosterCount">点这里上传名册（.xlsx / .xls）</div>
+            <div class="ds">第一列学号，第二列姓名；首行可为表头</div>
+          </div>
+          <input type="file" id="rosterInput" accept=".xlsx,.xls" style="display:none" onchange="handleRosterFile(this.files[0])">
+        </div>
+
+        <div id="rosterTabPastePanel" style="display:none;">
+          <textarea id="rosterPasteArea" rows="6" placeholder="每行一名学生，学号和姓名之间用空格、逗号或制表符分隔。例如：&#10;001 张三&#10;002 李四&#10;003 王五"></textarea>
+          <div style="height:8px;"></div>
+          <button class="btn-sm" style="width:100%;" onclick="handleRosterPaste()">导入粘贴内容</button>
+        </div>
+
+        <div id="rosterPreview"></div>
+
+        <div style="height:10px;"></div>
+        <label>上传学生填涂后的扫描图（可一次多张）</label>
+        <div class="drop" onclick="document.getElementById('omrInput').click()">
+          <span class="di">📷</span>
+          <div class="dt">点这里选择图片或 PDF</div>
+          <div class="ds">支持 .jpg / .png / .pdf（PDF 每页视为一份答题卡）</div>
+        </div>
+        <input type="file" id="omrInput" accept="image/*,.pdf,application/pdf" multiple style="display:none" onchange="handleOMRFiles(this.files)">
+      </div>
+
+      <div id="fileStatus"></div>
+    </div>
+    <div id="gradeResultBox"></div>
+  </section>
+
+  <!-- ============ 视图5：填涂卡模板 ============ -->
+  <section class="view" id="view-tpl">
+    <div class="card">
+      <h2><span class="num">📋</span>填涂卡模板</h2>
+      <p class="mini" style="margin-bottom:8px;">
+        这是标准化的填涂答题卡，四角的黑方块用于扫描后自动定位，<b>不要遮挡或裁掉</b>。<br>
+        点下方按钮可直接打印（A4 自动排版）。
+      </p>
+
+      <div class="field">
+        <label>每页 A4 排几张答题卡（节省纸张）</label>
+        <div class="seg">
+          <button id="ppBtn1" onclick="setPerPage(1)">1张</button>
+          <button class="on" id="ppBtn2" onclick="setPerPage(2)">2张</button>
+          <button id="ppBtn4" onclick="setPerPage(4)">4张</button>
+          <button id="ppBtn6" onclick="setPerPage(6)">6张</button>
+          <button id="ppBtn8" onclick="setPerPage(8)">8张</button>
+        </div>
+        <p class="mini" id="ppHint">默认 2 张/页，适合日常批量打印；打印后裁开，再扫描裁开后的单张答题卡上传。</p>
+      </div>
+
+      <div class="preview-box" id="tplPreview"></div>
+      <div style="height:10px;"></div>
+      <button class="btn-primary" onclick="printTemplate()">打印模板</button>
+      <div style="height:8px;"></div>
+      <button class="btn-ghost" onclick="downloadTemplateDocx()">下载 Word 模板 (.docx)</button>
+      <div style="height:8px;"></div>
+      <button class="btn-ghost" onclick="downloadTemplateSVG()">下载 SVG 模板</button>
+      <p class="mini" style="margin-top:8px;">
+        模板含：7 位学号填涂区 + 判断题 + 选择题，题数根据「标准答案」页自动调整。<br>
+        流程：选择每页数量 → 下载/打印 → 裁开 → 学生填涂 → 扫描裁开后的单张或多页 PDF 上传。
+      </p>
+      <p class="mini" style="margin-top:10px;text-align:center;color:var(--mute);">© WuYue · 答题卡批改助手</p>
+    </div>
+  </section>
+
+  <!-- ============ 视图3：成绩单 ============ -->
+  <section class="view" id="view-list">
+    <div id="listBody"></div>
+  </section>
+
+  <!-- ============ 视图4：统计 ============ -->
+  <section class="view" id="view-stats">
+    <div id="statsBody"></div>
+  </section>
+
+</main>
+
+<nav>
+  <button class="on" data-v="key" onclick="go('key',this)"><span class="ic">✎</span>标准答案</button>
+  <button data-v="grade" onclick="go('grade',this)"><span class="ic">✓</span>批改</button>
+  <button data-v="tpl" onclick="go('tpl',this)"><span class="ic">📋</span>模板</button>
+  <button data-v="list" onclick="go('list',this)"><span class="ic">☷</span>成绩单</button>
+  <button data-v="stats" onclick="go('stats',this)"><span class="ic">▦</span>统计</button>
+</nav>
+
+<div id="printArea"></div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ==================== PDF.js Worker 初始化 ==================== */
+// 必须在主脚本里设置，此时 pdf.min.js 已完成加载
+if(window.pdfjsLib){
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+
+/* ==================== 数据存储 ==================== */
+const DB_KEY='grader_v7';
+let DB={
+  scoreTF:1, scoreChoice:2,
+  keyTF:'',     // 'TTFFTTFF'
+  keyChoice:'', // 'APCDDCPAABCDDCBBAABB'
+  saved:false,
+  mode:'text',  // 'text' | 'omr'
+  perPage:2,    // 1 | 2 | 4 | 6 | 8 张答题卡/A4
+  roster:[],    // [{id:'001', name:'张三'}, ...]
+  students:[]   // {id, name, sid, tfAns, choiceAns, tfCorrect, choiceCorrect, score, totalScore, parseWarn, omrDebugImg?}
+};
+try{
+  const d=JSON.parse(localStorage.getItem(DB_KEY));
+  if(d) Object.assign(DB,d);
+  else{
+    // 尝试从老版本迁移
+    const old=JSON.parse(localStorage.getItem('grader_v4')) || JSON.parse(localStorage.getItem('grader_v3'));
+    if(old){
+      Object.assign(DB, old);
+      DB.perPage=2;
+    }
+  }
+}catch(e){}
+function save(){
+  // 不保存 omrDebugImg（base64 太大），保留其他
+  const slim={...DB, students:DB.students.map(s=>{const c={...s};delete c.omrDebugImg;return c;})};
+  try{ localStorage.setItem(DB_KEY,JSON.stringify(slim)); }catch(e){}
+}
+
+const TF_LBL={'T':'✓','F':'✗'};
+
+function toast(m){
+  const t=document.getElementById('toast');
+  t.textContent=m; t.classList.add('show');
+  clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),2200);
+}
+function go(v,btn){
+  document.querySelectorAll('.view').forEach(e=>e.classList.remove('active'));
+  document.getElementById('view-'+v).classList.add('active');
+  document.querySelectorAll('nav button').forEach(b=>b.classList.remove('on'));
+  (btn||document.querySelector('nav button[data-v="'+v+'"]')).classList.add('on');
+  if(v==='list') renderList();
+  if(v==='stats') renderStats();
+  if(v==='grade') renderGradeResult();
+  if(v==='tpl') renderTemplatePreview();
+  window.scrollTo(0,0);
+}
+
+/* ==================== 标准答案 ==================== */
+// 规范化用户输入的答案串：选择题保留 ABCD，判断题保留 TF（兼容对错符号）
+function normalizeChoice(s){
+  return s.toUpperCase().replace(/[^A-D]/g,'');
+}
+function normalizeTF(s){
+  return s.toUpperCase()
+    .replace(/对的|正确的|正确|对|√|✓|TRUE|YES/g,'T')
+    .replace(/错的|错误的|错误|错|×|✗|✘|FALSE|NO/g,'F')
+    .replace(/[^TF]/g,'');
+}
+
+function saveKey(){
+  const sTF=parseFloat(document.getElementById('scoreTF').value)||0;
+  const sCh=parseFloat(document.getElementById('scoreChoice').value)||0;
+  const kTF=normalizeTF(document.getElementById('keyTF').value);
+  const kCh=normalizeChoice(document.getElementById('keyChoice').value);
+  if(!kTF.length && !kCh.length){ toast('请至少录入一种题型的答案'); return; }
+  DB.scoreTF=sTF; DB.scoreChoice=sCh;
+  DB.keyTF=kTF; DB.keyChoice=kCh;
+  DB.saved=true;
+  // 重新批改已有学生
+  DB.students.forEach(regrade);
+  save();
+  renderKeyPreview();
+  document.getElementById('keySaved').textContent=
+    `✓ 已保存：判断 ${kTF.length} 题 × ${sTF} 分 ＋ 选择 ${kCh.length} 题 × ${sCh} 分 ＝ 总分 ${kTF.length*sTF+kCh.length*sCh}`;
+  toast('标准答案已保存');
+}
+function renderKeyPreview(){
+  if(!DB.saved){ document.getElementById('keyPreview').style.display='none'; return; }
+  document.getElementById('keyPreview').style.display='block';
+  const g=document.getElementById('keyGrid'); g.innerHTML='';
+  document.getElementById('keyHint').textContent=
+    `共 ${DB.keyTF.length+DB.keyChoice.length} 题：判断 ${DB.keyTF.length} 题，选择 ${DB.keyChoice.length} 题`;
+  // 判断题在前
+  for(let i=0;i<DB.keyTF.length;i++){
+    const a=DB.keyTF[i];
+    const cell=document.createElement('div');
+    cell.className='qcell tf';
+    cell.innerHTML=`<div class="qn">判${i+1}</div><div class="opts">
+      <div class="opt ${a==='T'?'on':''}" onclick="setKeyTF(${i},'T')">${TF_LBL.T}</div>
+      <div class="opt ${a==='F'?'on':''}" onclick="setKeyTF(${i},'F')">${TF_LBL.F}</div>
+    </div>`;
+    g.appendChild(cell);
+  }
+  // 选择题在后
+  for(let i=0;i<DB.keyChoice.length;i++){
+    const a=DB.keyChoice[i];
+    const cell=document.createElement('div');
+    cell.className='qcell';
+    let h=`<div class="qn">选${i+1}</div><div class="opts">`;
+    for(const o of 'ABCD'){
+      h+=`<div class="opt ${a===o?'on':''}" onclick="setKeyChoice(${i},'${o}')">${o}</div>`;
+    }
+    h+='</div>';
+    cell.innerHTML=h;
+    g.appendChild(cell);
+  }
+}
+function setKeyTF(i,o){
+  const arr=DB.keyTF.split('');
+  arr[i] = arr[i]===o ? '' : o;
+  DB.keyTF=arr.join('').padEnd(DB.keyTF.length,' ').trim();
+  if(!arr[i]) arr[i]='';
+  DB.keyTF=arr.join('');
+  // 重新规范一下确保都是 T/F
+  DB.keyTF=DB.keyTF.split('').map(c=>c==='T'||c==='F'?c:'F').join('');
+  save();
+  DB.students.forEach(regrade);
+  document.getElementById('keyTF').value=DB.keyTF;
+  renderKeyPreview();
+}
+function setKeyChoice(i,o){
+  const arr=DB.keyChoice.split('');
+  arr[i] = arr[i]===o ? '' : o;
+  DB.keyChoice=arr.map(c=>'ABCD'.includes(c)?c:'A').join('');
+  save();
+  DB.students.forEach(regrade);
+  document.getElementById('keyChoice').value=DB.keyChoice;
+  renderKeyPreview();
+}
+
+/* ==================== 批改：读取 docx 表格结构 ==================== */
+const W_NS='http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+
+async function handleFile(file){
+  if(!file) return;
+  if(!DB.saved){ toast('请先在「标准答案」页保存答案'); go('key'); return; }
+  const status=document.getElementById('fileStatus');
+  status.innerHTML=`<div class="filechip"><span class="fx">W</span>
+    <span style="flex:1">${file.name}</span><span><span class="loading"></span>读取中…</span></div>`;
+  try{
+    if(!file.name.toLowerCase().endsWith('.docx')){
+      throw new Error('只支持 .docx 格式，请在扫描全能王导出时选 Word');
+    }
+    const buf=await file.arrayBuffer();
+    const zip=await JSZip.loadAsync(buf);
+    const xmlFile=zip.file('word/document.xml');
+    if(!xmlFile) throw new Error('文件不是有效的 Word 文档');
+    const xmlText=await xmlFile.async('string');
+    const elements=parseDocxElements(xmlText);
+    const students=extractStudents(elements);
+    if(!students.length){
+      throw new Error('未识别到学生答题卡。请确认文件含「姓名/学号」+ 表格 的结构。');
+    }
+    students.forEach(regrade);
+    DB.students=students;
+    save();
+    status.innerHTML=`<div class="filechip"><span class="fx">✓</span>
+      <span style="flex:1">${file.name}</span>
+      <span style="color:var(--green);font-weight:700">识别 ${students.length} 人</span></div>`;
+    toast(`已批改 ${students.length} 名学生`);
+    renderGradeResult();
+    document.getElementById('gradeResultBox').scrollIntoView({behavior:'smooth'});
+  }catch(err){
+    status.innerHTML=`<div class="filechip" style="background:rgba(200,69,58,.08);color:var(--red)">
+      <span class="fx" style="background:var(--red)">!</span>
+      <span style="flex:1">${err.message||err}</span></div>`;
+  }
+}
+
+// 解析 docx XML 为按顺序排列的 [{type:'p'|'tbl', content}] 数组
+function parseDocxElements(xmlText){
+  const doc=new DOMParser().parseFromString(xmlText,'application/xml');
+  const body=doc.getElementsByTagNameNS(W_NS,'body')[0];
+  if(!body) return [];
+  const elements=[];
+  for(const el of body.children){
+    const tag=el.localName;
+    if(tag==='p'){
+      const text=getText(el).trim();
+      if(text) elements.push({type:'p',text});
+    }else if(tag==='tbl'){
+      const rows=[];
+      for(const tr of el.getElementsByTagNameNS(W_NS,'tr')){
+        const cells=[];
+        for(const tc of tr.getElementsByTagNameNS(W_NS,'tc')){
+          cells.push(getText(tc).trim());
+        }
+        rows.push(cells);
+      }
+      elements.push({type:'tbl',rows});
+    }
+  }
+  return elements;
+}
+function getText(node){
+  let s='';
+  for(const t of node.getElementsByTagNameNS(W_NS,'t')){ s+=t.textContent; }
+  return s;
+}
+
+// 从结构化元素中提取学生
+// 策略：每遇到含"姓名"或"学号"的段落开始一个新学生，把后续表格按顺序归到这个学生
+// 第一个表格视为判断题，第二个表格视为选择题（题号头行自动跳过）
+function extractStudents(elements){
+  const students=[];
+  let current=null;
+  let tableIdx=0;
+
+  function flushCurrent(){
+    if(current && (current.tfAns||current.choiceAns)){
+      students.push(current);
+    }
+  }
+
+  for(const el of elements){
+    if(el.type==='p'){
+      const text=el.text;
+      // 识别"姓名/学号"行 → 开新学生
+      if(/姓\s*名|学\s*号/.test(text)){
+        flushCurrent();
+        current={
+          id:Date.now()+Math.random(),
+          name:extractName(text),
+          tfAns:'',
+          choiceAns:'',
+          parseWarn:''
+        };
+        tableIdx=0;
+      }
+      // 其他段落（如"一、判断题"标题）：忽略
+    }else if(el.type==='tbl'){
+      if(!current) continue;
+      // 表格：跳过表头数字行，提取答案行
+      const answerRows=el.rows.filter(row=>{
+        // 答案行的特征：包含字母 A-D 或 T/F；表头行特征：纯数字
+        const joined=row.join('');
+        const hasLetter=/[ABCDTFabcdtf]/.test(joined);
+        const allDigits=/^[\d\s]*$/.test(joined);
+        return hasLetter || (!allDigits && joined.trim()===''); // 空答案行也保留（学生没作答）
+      });
+      // 但更稳的做法：表头(全数字行)跳过，剩下的就是答案
+      const dataRows=el.rows.filter(row=>{
+        const joined=row.join('').trim();
+        if(!joined) return true; // 空行（学生没填）也算答案行
+        return !/^[\d\s]+$/.test(joined); // 不全是数字 → 是答案行
+      });
+
+      // 按顺序：第一个表格 = 判断题，第二个及之后 = 选择题
+      if(tableIdx===0){
+        // 判断题
+        for(const row of dataRows){
+          for(const cell of row){
+            const c=normalizeTF(cell);
+            if(c.length) current.tfAns+=c[0];
+            else if(cell.trim()) current.tfAns+='?'; // 有内容但非T/F → 标记为问号
+            else current.tfAns+=' ';
+          }
+        }
+      }else{
+        // 选择题
+        for(const row of dataRows){
+          for(const cell of row){
+            const c=normalizeChoice(cell);
+            if(c.length) current.choiceAns+=c[0];
+            else if(cell.trim()) current.choiceAns+='?';
+            else current.choiceAns+=' ';
+          }
+        }
+      }
+      tableIdx++;
+    }
+  }
+  flushCurrent();
+  return students;
+}
+
+// 从"姓名:张三 班级:2-1"或"学号:001 姓名:张三"中提取姓名/学号
+function extractName(text){
+  // 优先取"姓名"后面的内容
+  let m=text.match(/姓\s*名\s*[:：]?\s*([^\s班级学号]+)/);
+  if(m) return m[1].trim();
+  m=text.match(/学\s*号\s*[:：]?\s*([^\s班级姓名]+)/);
+  if(m) return '学号'+m[1].trim();
+  return '未命名';
+}
+
+/* ==================== 批改/评分 ==================== */
+function regrade(s){
+  let tfRight=0, chRight=0, tfBad=0, chBad=0;
+  for(let i=0;i<DB.keyTF.length;i++){
+    const a=(s.tfAns[i]||'').trim();
+    if(a==='?') tfBad++;
+    else if(a && a===DB.keyTF[i]) tfRight++;
+  }
+  for(let i=0;i<DB.keyChoice.length;i++){
+    const a=(s.choiceAns[i]||'').trim();
+    if(a==='?') chBad++;
+    else if(a && a===DB.keyChoice[i]) chRight++;
+  }
+  s.tfCorrect=tfRight;
+  s.choiceCorrect=chRight;
+  s.score=Math.round((tfRight*DB.scoreTF + chRight*DB.scoreChoice)*10)/10;
+  s.totalScore=DB.keyTF.length*DB.scoreTF + DB.keyChoice.length*DB.scoreChoice;
+  // 警告：识别异常
+  const warns=[];
+  if(s.tfAns.length<DB.keyTF.length) warns.push(`判断题只识别 ${s.tfAns.length}/${DB.keyTF.length} 格`);
+  if(s.choiceAns.length<DB.keyChoice.length) warns.push(`选择题只识别 ${s.choiceAns.length}/${DB.keyChoice.length} 格`);
+  if(tfBad+chBad>0) warns.push(`${tfBad+chBad} 题识别字符可疑（非 A-D 或 T/F）`);
+  s.parseWarn=warns.join('；');
+}
+
+/* ==================== 视图2：结果展示 ==================== */
+function renderGradeResult(){
+  const box=document.getElementById('gradeResultBox');
+  if(!DB.students.length){ box.innerHTML=''; return; }
+  const warnCount=DB.students.filter(s=>s.parseWarn).length;
+  let html='<div class="card"><h2><span class="num">2</span>批改结果</h2>';
+  if(warnCount){
+    html+=`<p class="mini" style="color:var(--gold);font-weight:700;">⚠ ${warnCount} 名学生识别有异常，已标黄，请点开核对。</p>`;
+  }
+  DB.students.forEach((s,idx)=>{
+    const warn=!!s.parseWarn;
+    html+=`<div class="stu-item" onclick="toggleDetail(${idx})" style="cursor:pointer;">
+      <span class="nm">${s.name}<div class="sub">${s.sid?`学号 ${s.sid} · `:''}${s.tfCorrect}/${DB.keyTF.length}判 · ${s.choiceCorrect}/${DB.keyChoice.length}选</div></span>
+      ${warn?`<span class="badge warn">⚠</span>`:''}
+      <span class="sc" style="color:${s.score>=s.totalScore*0.6?'var(--green)':'var(--red)'}">${s.score}</span>
+    </div>
+    <div class="detail-box" id="detail-${idx}" style="display:none;">`;
+    if(s.parseWarn) html+=`<p class="mini" style="color:var(--gold);">⚠ ${s.parseWarn}</p>`;
+    // 判断题答题点阵
+    if(DB.keyTF.length){
+      html+='<div style="margin:6px 0 3px;font-size:11px;color:var(--mute);">判断题</div><div>';
+      for(let i=0;i<DB.keyTF.length;i++){
+        const a=(s.tfAns[i]||'').trim();
+        let cls,show;
+        if(!a){ cls='blank'; show='-'; }
+        else if(a==='?'){ cls='bad'; show='?'; }
+        else if(a===DB.keyTF[i]){ cls='ok'; show=TF_LBL[a]||a; }
+        else { cls='no'; show=TF_LBL[a]||a; }
+        html+=`<span class="ansdot ${cls}" title="第${i+1}判 标准答案${TF_LBL[DB.keyTF[i]]}">${show}</span>`;
+      }
+      html+='</div>';
+    }
+    if(DB.keyChoice.length){
+      html+='<div style="margin:6px 0 3px;font-size:11px;color:var(--mute);">选择题</div><div>';
+      for(let i=0;i<DB.keyChoice.length;i++){
+        const a=(s.choiceAns[i]||'').trim();
+        let cls,show;
+        if(!a){ cls='blank'; show='-'; }
+        else if(a==='?'){ cls='bad'; show='?'; }
+        else if(a===DB.keyChoice[i]){ cls='ok'; show=a; }
+        else { cls='no'; show=a; }
+        html+=`<span class="ansdot ${cls}" title="第${i+1}选 标准答案${DB.keyChoice[i]}">${show}</span>`;
+      }
+      html+='</div>';
+    }
+    // 填涂卡：展示调试图（识别结果可视化）
+    if(s.omrDebugImg){
+      html+=`<div style="margin-top:10px;font-size:11px;color:var(--mute);">识别核对图（绿圈=识别为涂黑）</div>
+        <img src="${s.omrDebugImg}" style="width:100%;border:1px solid var(--line);border-radius:6px;margin-top:4px;">`;
+    }
+    html+='</div>';
+  });
+  html+='</div>';
+  box.innerHTML=html;
+}
+function toggleDetail(i){
+  const d=document.getElementById('detail-'+i);
+  d.style.display=d.style.display==='none'?'block':'none';
+}
+
+/* ==================== 视图3：成绩单 ==================== */
+function renderList(){
+  const box=document.getElementById('listBody');
+  if(!DB.students.length){
+    box.innerHTML='<div class="card"><div class="empty"><span class="ico">☷</span>还没有成绩</div></div>';
+    return;
+  }
+  const ranked=[...DB.students].sort((a,b)=>b.score-a.score);
+  let html='<div class="card"><h2><span class="num">☷</span>成绩排名</h2>';
+  ranked.forEach((s,idx)=>{
+    const c=s.score>=s.totalScore*0.85?'var(--green)':s.score>=s.totalScore*0.6?'var(--ink)':'var(--red)';
+    html+=`<div class="stu-item">
+      <span class="badge ${idx<3?'warn':'todo'}">${idx+1}</span>
+      <span class="nm">${s.name}</span>
+      <span class="sub">${s.tfCorrect+s.choiceCorrect}/${DB.keyTF.length+DB.keyChoice.length}</span>
+      <span class="sc" style="color:${c}">${s.score}</span>
+    </div>`;
+  });
+  html+='<div class="divider"></div>'+
+    '<button class="btn-ghost" onclick="exportCSV()">导出 Excel 表 (.csv)</button>'+
+    '<div style="height:8px;"></div>'+
+    '<button class="btn-sm btn-danger" style="width:100%" onclick="clearStudents()">清空本次成绩</button>'+
+    '</div>';
+  box.innerHTML=html;
+}
+
+function htmlEscape(s){
+  return String(s==null?'':s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+function csvCell(s){
+  s=String(s==null?'':s);
+  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
+}
+function answerShow(type,a){
+  if(!a) return '空';
+  return type==='tf' ? (TF_LBL[a]||a) : a;
+}
+function buildQuestionStats(){
+  const ss=DB.students, n=ss.length, out=[];
+  function add(qIdx,type,key){
+    let right=0; const wrong={}, names={};
+    ss.forEach(s=>{
+      const raw=(type==='tf'?s.tfAns:s.choiceAns)[qIdx]||'';
+      const a=raw.trim();
+      if(a===key){ right++; return; }
+      const k=a||'空';
+      wrong[k]=(wrong[k]||0)+1;
+      if(!names[k]) names[k]=[];
+      names[k].push(s.name + (s.sid ? `(${s.sid})` : ''));
+    });
+    const wrongEntries=Object.entries(wrong).sort((a,b)=>b[1]-a[1]);
+    const main=wrongEntries[0]||['',0];
+    out.push({
+      qIdx,type,key,
+      label:`${type==='tf'?'判':'选'}${qIdx+1}`,
+      right,
+      pct:n?right/n:0,
+      wrongCount:n-right,
+      wrongEntries,
+      mainWrong:main[0],
+      mainWrongCount:main[1],
+      mainWrongNames:names[main[0]]||[],
+    });
+  }
+  for(let i=0;i<DB.keyTF.length;i++) add(i,'tf',DB.keyTF[i]);
+  for(let i=0;i<DB.keyChoice.length;i++) add(i,'choice',DB.keyChoice[i]);
+  return out;
+}
+
+/* ==================== 视图4：统计 ==================== */
+function renderStats(){
+  const box=document.getElementById('statsBody');
+  if(!DB.students.length){
+    box.innerHTML='<div class="card"><div class="empty"><span class="ico">▦</span>还没有数据</div></div>';
+    return;
+  }
+  const ss=DB.students, n=ss.length;
+  const totalScore=ss[0].totalScore;
+  const scores=ss.map(s=>s.score);
+  const avg=scores.reduce((a,b)=>a+b,0)/n;
+  const mx=Math.max(...scores), mn=Math.min(...scores);
+  const passLine=totalScore*0.6;
+  const passRate=Math.round(ss.filter(s=>s.score>=passLine).length/n*100);
+  const qStats=buildQuestionStats();
+
+  let html=`<div class="score-hero">
+    <div class="big">${avg.toFixed(1)}</div>
+    <div class="of">/ ${totalScore} 分</div>
+    <div class="lbl">班级平均分 · ${n} 人</div>
+  </div>
+  <div class="stat-row">
+    <div class="stat-box"><div class="v" style="color:var(--green)">${mx}</div><div class="k">最高分</div></div>
+    <div class="stat-box"><div class="v" style="color:var(--red)">${mn}</div><div class="k">最低分</div></div>
+    <div class="stat-box"><div class="v" style="color:var(--blue)">${passRate}%</div><div class="k">及格率</div></div>
+  </div>`;
+
+  // 每小题得分率
+  html+='<div class="card"><h2><span class="num">▦</span>每小题得分率</h2>';
+  function renderQRow(q){
+    const pct=Math.round(q.pct*100);
+    const color=pct>=80?'var(--green)':pct>=60?'var(--gold)':'var(--red)';
+    let tw='';
+    if(q.wrongEntries.length){
+      const [opt,cnt]=q.wrongEntries[0];
+      const show=answerShow(q.type,opt==='空'?'':opt);
+      tw=`<span class="wrong-pill">错选 ${show}（${cnt}人）</span>`;
+    }
+    const keyShow=answerShow(q.type,q.key);
+    return `<div class="qbar">
+      <div class="top">
+        <span>${q.label} · 答案 ${keyShow}</span>
+        <span class="pct" style="color:${color}">${pct}%</span>
+      </div>
+      <div class="track"><div class="fill" style="width:${pct}%;background:${color}"></div></div>
+      <div class="meta">${q.right}/${n} 答对 ${tw}</div>
+    </div>`;
+  }
+  qStats.forEach(q=>html+=renderQRow(q));
+  html+='</div>';
+
+  // 高频错误讲评清单
+  const talkQs=qStats.filter(q=>q.wrongCount>0).sort((a,b)=>b.wrongCount-a.wrongCount || a.pct-b.pct).slice(0,8);
+  html+='<div class="card"><h2><span class="num">!</span>高频错误讲评清单</h2>';
+  if(!talkQs.length){
+    html+='<div class="empty">全班本次没有错题记录。</div>';
+  }
+  talkQs.forEach((q,idx)=>{
+    const keyShow=answerShow(q.type,q.key);
+    const mainShow=answerShow(q.type,q.mainWrong==='空'?'':q.mainWrong);
+    const names=q.mainWrongNames.slice(0,18).map(htmlEscape).join('、');
+    const more=q.mainWrongNames.length>18 ? `等 ${q.mainWrongNames.length} 人` : `${q.mainWrongNames.length} 人`;
+    html+=`<div class="qbar">
+      <div class="top">
+        <span><b>${idx+1}. ${q.label}</b> · 标准 ${keyShow}</span>
+        <span class="pct" style="color:var(--red)">错 ${q.wrongCount}/${n}</span>
+      </div>
+      <div class="meta">主要错法：${mainShow}（${q.mainWrongCount}人）</div>
+      <div class="meta">订正学生：${names}${q.mainWrongNames.length?`（${more}）`:''}</div>
+    </div>`;
+  });
+  html+='</div>';
+  box.innerHTML=html;
+}
+
+/* ==================== 导出/清空 ==================== */
+function exportCSV(){
+  const hot=new Set(buildQuestionStats().filter(q=>q.wrongCount>0).sort((a,b)=>b.wrongCount-a.wrongCount || a.pct-b.pct).slice(0,8).map(q=>q.label));
+  let csv='学号,姓名,得分,判断对,选择对,总题数,高频错题';
+  for(let i=0;i<DB.keyTF.length;i++) csv+=`,判${i+1}`;
+  for(let i=0;i<DB.keyChoice.length;i++) csv+=`,选${i+1}`;
+  csv+='\n';
+  [...DB.students].sort((a,b)=>b.score-a.score).forEach(s=>{
+    const wrongLabels=[];
+    for(let i=0;i<DB.keyTF.length;i++){
+      const a=(s.tfAns[i]||'').trim();
+      if(a!==DB.keyTF[i] && hot.has(`判${i+1}`)) wrongLabels.push(`判${i+1}`);
+    }
+    for(let i=0;i<DB.keyChoice.length;i++){
+      const a=(s.choiceAns[i]||'').trim();
+      if(a!==DB.keyChoice[i] && hot.has(`选${i+1}`)) wrongLabels.push(`选${i+1}`);
+    }
+    csv+=[
+      csvCell(s.sid||''),
+      csvCell(s.name),
+      csvCell(s.score),
+      csvCell(`${s.tfCorrect}/${DB.keyTF.length}`),
+      csvCell(`${s.choiceCorrect}/${DB.keyChoice.length}`),
+      csvCell(DB.keyTF.length+DB.keyChoice.length),
+      csvCell(wrongLabels.join('、'))
+    ].join(',');
+    for(let i=0;i<DB.keyTF.length;i++){
+      const a=(s.tfAns[i]||'').trim();
+      csv+=','+csvCell(`${answerShow('tf',a)}${a===DB.keyTF[i]?'✓':'✗'}`);
+    }
+    for(let i=0;i<DB.keyChoice.length;i++){
+      const a=(s.choiceAns[i]||'').trim();
+      csv+=','+csvCell(`${answerShow('choice',a)}${a===DB.keyChoice[i]?'✓':'✗'}`);
+    }
+    csv+='\n';
+  });
+  const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download='成绩表.csv'; a.click();
+  URL.revokeObjectURL(url);
+  toast('已导出');
+}
+function clearStudents(){
+  if(!confirm('清空本次成绩？标准答案保留。')) return;
+  DB.students=[]; save();
+  const fs=document.getElementById('fileStatus'); if(fs) fs.innerHTML='';
+  renderGradeResult(); renderList();
+  toast('已清空');
+}
+
+/* ==================== 模式切换 ==================== */
+function setMode(m){
+  DB.mode=m; save();
+  document.getElementById('modeBtnText').classList.toggle('on', m==='text');
+  document.getElementById('modeBtnOMR').classList.toggle('on', m==='omr');
+  document.getElementById('modeText').style.display = m==='text' ? 'block' : 'none';
+  document.getElementById('modeOMR').style.display = m==='omr' ? 'block' : 'none';
+  document.getElementById('fileStatus').innerHTML='';
+}
+
+/* ==================== 名册（Excel / 粘贴）==================== */
+function setRosterTab(t){
+  const isXlsx = t==='xlsx';
+  document.getElementById('rosterTabXlsx').classList.toggle('on', isXlsx);
+  document.getElementById('rosterTabPaste').classList.toggle('on', !isXlsx);
+  document.getElementById('rosterTabXlsxPanel').style.display = isXlsx ? 'block' : 'none';
+  document.getElementById('rosterTabPastePanel').style.display = isXlsx ? 'none' : 'block';
+}
+
+// 把一组「[学号字段, 姓名字段, ...]」行变成 roster
+function rowsToRoster(rows){
+  const roster=[];
+  for(const row of rows){
+    if(!row || row.length<2) continue;
+    let id = (row[0]==null?'':String(row[0])).trim();
+    let name = (row[1]==null?'':String(row[1])).trim();
+    if(!id || !name) continue;
+    // 跳过表头
+    if(/学号|学籍|ID/i.test(id) && /姓名|名字|name/i.test(name)) continue;
+    // 防止 Excel 把纯数字学号读成数字，去掉末尾小数 .0
+    id = id.replace(/\.0+$/,'');
+    roster.push({id, name});
+  }
+  return roster;
+}
+
+function handleRosterFile(file){
+  if(!file) return;
+  const name=file.name.toLowerCase();
+  if(!/\.(xlsx|xls)$/.test(name)){
+    toast('请选择 Excel 文件（.xlsx / .xls）');
+    return;
+  }
+  if(!window.XLSX){
+    toast('Excel 解析库未加载，请刷新后重试');
+    return;
+  }
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const data=new Uint8Array(e.target.result);
+      const wb=XLSX.read(data,{type:'array'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      // header:1 → 二维数组
+      const rows=XLSX.utils.sheet_to_json(ws,{header:1, defval:''});
+      const roster=rowsToRoster(rows);
+      if(!roster.length){
+        toast('未识别到任何学生，请确认第一列学号、第二列姓名');
+        return;
+      }
+      DB.roster=roster; save();
+      renderRoster();
+      toast(`已导入 ${roster.length} 名学生`);
+    }catch(err){
+      toast('Excel 解析失败：'+(err.message||err));
+    }
+  };
+  reader.onerror=()=>toast('读取失败');
+  reader.readAsArrayBuffer(file);
+}
+
+function handleRosterPaste(){
+  const text=document.getElementById('rosterPasteArea').value||'';
+  const lines=text.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+  // 每行分隔：制表符 / 逗号（中英）/ 多空格
+  const rows=lines.map(line=>line.split(/[\t,，]|\s{1,}/).map(s=>s.trim()).filter(Boolean));
+  const roster=rowsToRoster(rows);
+  if(!roster.length){
+    toast('未识别到任何学生，请检查格式');
+    return;
+  }
+  DB.roster=roster; save();
+  renderRoster();
+  toast(`已导入 ${roster.length} 名学生`);
+}
+function renderRoster(){
+  const cnt=document.getElementById('rosterCount');
+  const prev=document.getElementById('rosterPreview');
+  if(!cnt||!prev) return;
+  if(!DB.roster.length){
+    cnt.textContent='点这里上传名册（.xlsx / .xls）';
+    prev.innerHTML='';
+    return;
+  }
+  cnt.textContent=`已导入 ${DB.roster.length} 名学生 · 点击重新上传`;
+  let html='<div class="roster-list">';
+  DB.roster.slice(0,50).forEach(r=>{
+    html+=`<div class="roster-row"><span class="rid">${r.id}</span><span class="rnm">${r.name}</span></div>`;
+  });
+  if(DB.roster.length>50) html+=`<div class="roster-row" style="color:var(--mute);">…还有 ${DB.roster.length-50} 人</div>`;
+  html+='</div>';
+  prev.innerHTML=html;
+}
+
+/* ==================== 填涂卡模板（SVG）==================== */
+/* 标准化坐标系：A4 纵向 = 595 × 842 点（CSS pt）
+   四角定位标记位置固定。题量根据 DB.keyTF.length / DB.keyChoice.length 动态生成。 */
+const TPL={
+  W:595, H:842,
+  marginX:30, marginY:30,    // 距纸张边距
+  fidSize:18,                 // 定位方块大小
+  sidCols:7,                  // 学号位数
+  sidDigits:10,               // 0-9
+  bubbleR:8,                  // 圆圈半径
+  bubbleStroke:1.2,
+};
+function getQCounts(){
+  // 已保存答案：严格按实际题数，允许某种题型为 0（只有一种题型的情况）
+  if(DB.saved){
+    return { nTF: DB.keyTF.length, nCh: DB.keyChoice.length };
+  }
+  // 未保存答案时才使用默认示例题数（8 判 + 20 选）
+  return { nTF: 8, nCh: 20 };
+}
+function getTemplateMetrics(){
+  const {nTF,nCh}=getQCounts();
+  const total=nTF+nCh;
+  let scale=1;
+  if(total<=12) scale=1.6;
+  else if(total<=24) scale=1.38;
+  else if(total<=40) scale=1.18;
+  const fit=(v,min,max)=>Math.max(min,Math.min(max,v));
+  const bubbleR=fit(TPL.bubbleR*scale,8,12);
+  return {
+    scale,
+    bubbleR,
+    titleFont:fit(15*scale,15,22),
+    subFont:fit(8*scale,8,11),
+    infoFont:fit(9.5*scale,9.5,13),
+    smallFont:fit(7.5*scale,7.5,10),
+    digitFont:fit(8.5*scale,8.5,11.5),
+    sectionFont:fit(10.5*scale,10.5,15),
+    qFont:fit(9.5*scale,9.5,14),
+    optFont:fit(8.5*scale,8.5,12),
+    sidColW:fit(17*scale,17,21),
+    sidRowH:fit(17*scale,17,21),
+    tfRowH:fit(32*scale,32,48),
+    chRowH:fit(32*scale,32,46),
+    tfOptGap:fit(22*scale,22,31),
+    chOptGap:fit(17*scale,17,24),
+  };
+}
+function normalizePerPage(n){
+  n=parseInt(n,10);
+  return [1,2,4,6,8].includes(n) ? n : 2;
+}
+function getSheetLayout(n){
+  n=normalizePerPage(n);
+  const landscape = n===2 || n===8;
+  const pageW = landscape ? 842 : 595;
+  const pageH = landscape ? 595 : 842;
+  const map={
+    1:{cols:1, rows:1},
+    2:{cols:2, rows:1},
+    4:{cols:2, rows:2},
+    6:{cols:2, rows:3},
+    8:{cols:4, rows:2},
+  };
+  return {n, pageW, pageH, landscape, ...map[n]};
+}
+function cardInnerSVG(){
+  const full=buildTemplateSVG();
+  return full.replace(/^<svg[^>]*>/,'').replace(/<\/svg>\s*$/,'');
+}
+/* buildTemplateSVG(): 生成单张答题卡 SVG。所有打印数量都缩放同一张卡，
+   保证裁开后的答题卡和识别坐标完全一致。 */
+function buildTemplateSVG(){
+  const W = TPL.W;
+  const H = TPL.H;
+  const {marginX,marginY,fidSize,sidCols,sidDigits}=TPL;
+  const {nTF,nCh}=getQCounts();
+  const M=getTemplateMetrics();
+  const bubbleR=M.bubbleR;
+  let svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" style="background:#fff;font-family:'Helvetica','Noto Sans SC',sans-serif;">`;
+
+  // 四角定位方块
+  const corners=[
+    [marginX, marginY],
+    [W-marginX-fidSize, marginY],
+    [marginX, H-marginY-fidSize],
+    [W-marginX-fidSize, H-marginY-fidSize],
+  ];
+  corners.forEach(([x,y])=>{
+    svg+=`<rect x="${x}" y="${y}" width="${fidSize}" height="${fidSize}" fill="#000"/>`;
+  });
+
+  // 标题行
+  const titleY = marginY + 14;
+  svg+=`<text x="${W/2}" y="${titleY}" text-anchor="middle" font-size="${M.titleFont}" font-weight="bold">答  题  卡</text>`;
+  svg+=`<text x="${W/2}" y="${titleY+M.titleFont}" text-anchor="middle" font-size="${M.subFont}" fill="#888">用 2B 铅笔将选项框完全涂黑；保持答题卡清洁、平整、不折叠</text>`;
+
+  // —— 上部信息区：学号矩阵（左）+ 姓名/班级/日期（右）并排 ——
+  const infoTop = titleY + 8 + M.titleFont;
+
+  // 学号矩阵
+  const sidX = marginX + 20;
+  const sidColW = M.sidColW;
+  const sidRowH = M.sidRowH;
+  svg+=`<text x="${sidX}" y="${infoTop+9}" font-size="${M.infoFont}" font-weight="bold">学号</text>`;
+  svg+=`<text x="${sidX+38}" y="${infoTop+9}" font-size="${M.smallFont}" fill="#888">（每列涂一个数字）</text>`;
+  // 位号
+  for(let c=0;c<sidCols;c++){
+    svg+=`<text x="${sidX+c*sidColW+sidColW/2}" y="${infoTop+20}" text-anchor="middle" font-size="${M.smallFont}" fill="#aaa">${c+1}</text>`;
+  }
+  // 气泡矩阵
+  for(let d=0;d<sidDigits;d++){
+    for(let c=0;c<sidCols;c++){
+      const cx=sidX+c*sidColW+sidColW/2;
+      const cy=infoTop+28+d*sidRowH;
+      if(c===0){
+        svg+=`<text x="${sidX-10}" y="${cy+M.digitFont*0.35}" text-anchor="middle" font-size="${M.digitFont}" fill="#555">${d}</text>`;
+      }
+      svg+=`<circle cx="${cx}" cy="${cy}" r="${bubbleR-0.5}" fill="#fff" stroke="#444" stroke-width="1"/>`;
+    }
+  }
+  const sidMatrixBottom = infoTop + 28 + (sidDigits-1)*sidRowH + bubbleR + 4;
+
+  // 右侧姓名/班级/日期 — 均匀分布在矩阵高度内
+  const rightX = sidX + sidCols*sidColW + 18;
+  const rightW = W - marginX - 5 - rightX;
+  const infoLabels = ['姓名','班级','日期'];
+  const infoAreaH = sidMatrixBottom - infoTop;
+  infoLabels.forEach((lbl,i)=>{
+    const rowH = infoAreaH / infoLabels.length;
+    const yBase = infoTop + i*rowH + rowH*0.62;
+    svg+=`<text x="${rightX}" y="${yBase}" font-size="${M.infoFont}" font-weight="bold">${lbl}</text>`;
+    svg+=`<line x1="${rightX+22}" y1="${yBase+2}" x2="${rightX+rightW}" y2="${yBase+2}" stroke="#bbb" stroke-width="0.7"/>`;
+  });
+
+  // 分隔线
+  svg+=`<line x1="${marginX+8}" y1="${sidMatrixBottom+6}" x2="${W-marginX-8}" y2="${sidMatrixBottom+6}" stroke="#ddd" stroke-width="0.6"/>`;
+
+  let curY = sidMatrixBottom + 16;
+
+  // —— 判断题区（nTF>0 时绘制）——
+  if(nTF > 0){
+    svg+=`<text x="${marginX+5}" y="${curY}" font-size="${M.sectionFont}" font-weight="bold">一、判断题（T = 正确，F = 错误）</text>`;
+    const tfStartY = curY + M.sectionFont + 3;
+    const tfPerRow = 4;
+    const tfCellW = (W - marginX*2 - 10) / tfPerRow;
+    const tfRowH = M.tfRowH;
+    for(let i=0;i<nTF;i++){
+      const r=Math.floor(i/tfPerRow), c=i%tfPerRow;
+      const cellX = marginX + 5 + c*tfCellW;
+      const cellY = tfStartY + r*tfRowH;
+      const ty=cellY+M.optFont+bubbleR+3;
+      svg+=`<text x="${cellX}" y="${ty+M.qFont*0.35}" font-size="${M.qFont}" font-weight="bold">${i+1}.</text>`;
+      const tx=cellX+26;
+      svg+=`<text x="${tx}" y="${cellY+M.optFont}" text-anchor="middle" font-size="${M.optFont}" fill="#555">T</text>`;
+      svg+=`<circle cx="${tx}" cy="${ty}" r="${bubbleR-0.5}" fill="#fff" stroke="#444" stroke-width="1"/>`;
+      const fx=cellX+26+M.tfOptGap, fy=ty;
+      svg+=`<text x="${fx}" y="${cellY+M.optFont}" text-anchor="middle" font-size="${M.optFont}" fill="#555">F</text>`;
+      svg+=`<circle cx="${fx}" cy="${fy}" r="${bubbleR-0.5}" fill="#fff" stroke="#444" stroke-width="1"/>`;
+    }
+    curY = tfStartY + Math.ceil(nTF/tfPerRow)*tfRowH + 6;
+  }
+
+  // —— 选择题区（nCh>0 时绘制）——
+  if(nCh > 0){
+    const secLabel = nTF > 0 ? '二' : '一';
+    svg+=`<text x="${marginX+5}" y="${curY}" font-size="${M.sectionFont}" font-weight="bold">${secLabel}、选择题（每题只涂一个选项）</text>`;
+    const chStartY = curY + M.sectionFont + 3;
+    const chPerRow = 4;
+    const chCellW = (W - marginX*2 - 10) / chPerRow;
+    const chRowH = M.chRowH;
+    for(let i=0;i<nCh;i++){
+      const r=Math.floor(i/chPerRow), c=i%chPerRow;
+      const cellX = marginX + 5 + c*chCellW;
+      const cellY = chStartY + r*chRowH;
+      const cy=cellY+M.optFont+bubbleR+3;
+      svg+=`<text x="${cellX}" y="${cy+M.qFont*0.35}" font-size="${M.qFont}" font-weight="bold">${i+1}.</text>`;
+      'ABCD'.split('').forEach((opt,k)=>{
+        const cx=cellX+26+k*M.chOptGap;
+        svg+=`<text x="${cx}" y="${cellY+M.optFont}" text-anchor="middle" font-size="${M.optFont}" fill="#555">${opt}</text>`;
+        svg+=`<circle cx="${cx}" cy="${cy}" r="${bubbleR-0.5}" fill="#fff" stroke="#444" stroke-width="1"/>`;
+      });
+    }
+    curY = chStartY + Math.ceil(nCh/chPerRow)*chRowH;
+  }
+
+  // 底部版权
+  svg+=`<text x="${W/2}" y="${H-marginY+10}" text-anchor="middle" font-size="7.5" fill="#bbb">© WuYue · 答题卡批改助手</text>`;
+
+  svg+='</svg>';
+  return svg;
+}
+function buildTemplateSheetSVG(n){
+  const layout=getSheetLayout(n);
+  const gap=8;
+  const cardW=TPL.W, cardH=TPL.H, cardRatio=cardW/cardH;
+  const cellW=layout.pageW/layout.cols;
+  const cellH=layout.pageH/layout.rows;
+  const inner=cardInnerSVG();
+  let svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${layout.pageW} ${layout.pageH}" width="${layout.pageW}" height="${layout.pageH}" style="background:#fff;font-family:'Helvetica','Noto Sans SC',sans-serif;">`;
+  svg+=`<rect x="0" y="0" width="${layout.pageW}" height="${layout.pageH}" fill="#fff"/>`;
+  for(let i=0;i<layout.n;i++){
+    const r=Math.floor(i/layout.cols), c=i%layout.cols;
+    const x0=c*cellW, y0=r*cellH;
+    const maxW=cellW-gap*2, maxH=cellH-gap*2;
+    let w=maxW, h=w/cardRatio;
+    if(h>maxH){ h=maxH; w=h*cardRatio; }
+    const x=x0+(cellW-w)/2, y=y0+(cellH-h)/2;
+    svg+=`<svg x="${x}" y="${y}" width="${w}" height="${h}" viewBox="0 0 ${cardW} ${cardH}">${inner}</svg>`;
+  }
+  for(let c=1;c<layout.cols;c++){
+    const x=c*cellW;
+    svg+=`<line x1="${x}" y1="0" x2="${x}" y2="${layout.pageH}" stroke="#999" stroke-width="1" stroke-dasharray="5 5"/>`;
+  }
+  for(let r=1;r<layout.rows;r++){
+    const y=r*cellH;
+    svg+=`<line x1="0" y1="${y}" x2="${layout.pageW}" y2="${y}" stroke="#999" stroke-width="1" stroke-dasharray="5 5"/>`;
+  }
+  svg+='</svg>';
+  return svg;
+}
+function renderTemplatePreview(){
+  const box=document.getElementById('tplPreview');
+  if(!box) return;
+  box.innerHTML=buildTemplateSheetSVG(DB.perPage);
+}
+function downloadTemplateSVG(){
+  const n=normalizePerPage(DB.perPage);
+  const svg=buildTemplateSheetSVG(n);
+  const blob=new Blob([svg],{type:'image/svg+xml'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download=`答题卡模板_${n}张每页.svg`; a.click();
+  URL.revokeObjectURL(url);
+  toast('已下载');
+}
+
+/* 每页张数布局选择 */
+function setPerPage(n){
+  n=normalizePerPage(n);
+  DB.perPage=n; save();
+  [1,2,4,6,8].forEach(k=>{
+    document.getElementById('ppBtn'+k).classList.toggle('on', k===n);
+  });
+  const hints={
+    1:'每张答题卡占满整页 A4（纵向），识别精度最高。',
+    2:'默认推荐：A4 横向打印，两张左右并排；裁开后上传单张识别。',
+    4:'A4 纵向 4 张，适合题量较少的日常练习。',
+    6:'A4 纵向 6 张，卡片会留出空白以保持识别比例一致。',
+    8:'A4 横向 8 张，适合非常短的小练习；裁开后再扫描上传。',
+  };
+  document.getElementById('ppHint').textContent=hints[n]||hints[2];
+  renderTemplatePreview();
+}
+
+/* 打印：根据 perPage 在 A4 上排 1/2/4/6/8 张相同的答题卡 */
+function printTemplate(){
+  const n=normalizePerPage(DB.perPage);
+  const layout=getSheetLayout(n);
+  const svg=buildTemplateSheetSVG(n);
+  const old=document.getElementById('printFrame');
+  if(old) old.remove();
+  const frame=document.createElement('iframe');
+  frame.id='printFrame';
+  frame.style.position='fixed';
+  frame.style.right='0';
+  frame.style.bottom='0';
+  frame.style.width='0';
+  frame.style.height='0';
+  frame.style.border='0';
+  document.body.appendChild(frame);
+  const doc=frame.contentDocument || frame.contentWindow.document;
+  const pageW=layout.landscape ? '297mm' : '210mm';
+  const pageH=layout.landscape ? '210mm' : '297mm';
+  const printSvg = svg.replace('<svg ', '<svg style="width:100%;height:100%;display:block;" ');
+  doc.open();
+  doc.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+    <title>打印答题卡模板</title>
+    <style>
+      @page{size:A4 ${layout.landscape?'landscape':'portrait'};margin:0;}
+      html,body{margin:0;padding:0;width:${pageW};height:${pageH};overflow:hidden;background:#fff;}
+      .page{width:${pageW};height:${pageH};overflow:hidden;page-break-after:avoid;break-after:avoid;}
+      svg{width:100%;height:100%;display:block;}
+    </style>
+  </head><body><div class="page">${printSvg}</div></body></html>`);
+  doc.close();
+  frame.onload=()=>{};
+  setTimeout(()=>{
+    frame.contentWindow.focus();
+    frame.contentWindow.print();
+    setTimeout(()=>frame.remove(),1000);
+  },200);
+}
+
+/* ==================== 下载 Word 模板 (.docx) ==================== */
+/* 思路：用 SVG 渲染到 Canvas → PNG → 嵌入到 docx 的 word/media，
+   document.xml 用 <w:drawing> 引用图片，按 A4 整页布局，
+   按 perPage 在同一页内重复 1/2/3 次（DOCX 用 anchored 比较复杂，
+   这里改用「正文里多张图片，每张占满一行」的方式，让 Word 自动分页/分布）。*/
+async function downloadTemplateDocx(){
+  try{
+    if(!window.JSZip){ toast('压缩库未加载'); return; }
+    const n=normalizePerPage(DB.perPage);
+    const layout=getSheetLayout(n);
+    const svgStr=buildTemplateSheetSVG(n);
+    const png=await svgToPngDataURL(svgStr, layout.landscape ? 5000 : 3600);
+    const b64=png.replace(/^data:image\/png;base64,/,'');
+
+    const EMU_PER_MM = 36000;
+    const imgWidthMm = layout.landscape ? 297 : 210;
+    const imgHeightMm = layout.landscape ? 210 : 297;
+    const cxEmu = Math.round(imgWidthMm * EMU_PER_MM);
+    const cyEmu = Math.round(imgHeightMm * EMU_PER_MM);
+
+    const zip=new JSZip();
+
+    // [Content_Types].xml
+    zip.file('[Content_Types].xml',
+`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>`);
+
+    // _rels/.rels
+    zip.folder('_rels').file('.rels',
+`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>`);
+
+    // word/_rels/document.xml.rels
+    zip.folder('word/_rels').file('document.xml.rels',
+`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId10" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/template.png"/>
+</Relationships>`);
+
+    // word/media/template.png
+    zip.folder('word/media').file('template.png', b64, {base64:true});
+
+    const body=paragraphWithImage(`rId10`, cxEmu, cyEmu, 1);
+    const pgW=layout.landscape ? 16838 : 11906;
+    const pgH=layout.landscape ? 11906 : 16838;
+    const sectPr =
+`<w:sectPr>
+  <w:pgSz w:w="${pgW}" w:h="${pgH}"/>
+  <w:pgMar w:top="0" w:right="0" w:bottom="0" w:left="0" w:header="0" w:footer="0" w:gutter="0"/>
+</w:sectPr>`;
+
+    const docXml =
+`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+  xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+  xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+  xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+  xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+  <w:body>
+    ${body}
+    ${sectPr}
+  </w:body>
+</w:document>`;
+    zip.folder('word').file('document.xml', docXml);
+
+    const blob=await zip.generateAsync({type:'blob',
+      mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url; a.download=`答题卡模板_${n}张每页.docx`; a.click();
+    URL.revokeObjectURL(url);
+    toast('已下载 Word 模板');
+  }catch(err){
+    console.error(err);
+    toast('生成失败：'+(err.message||err));
+  }
+}
+
+// 生成一个带图片的 paragraph（inline drawing）
+function paragraphWithImage(rId, cxEmu, cyEmu, picId){
+  return `<w:p>
+    <w:pPr><w:jc w:val="center"/><w:spacing w:after="0"/></w:pPr>
+    <w:r>
+      <w:rPr><w:noProof/></w:rPr>
+      <w:drawing>
+        <wp:inline distT="0" distB="0" distL="0" distR="0">
+          <wp:extent cx="${cxEmu}" cy="${cyEmu}"/>
+          <wp:effectExtent l="0" t="0" r="0" b="0"/>
+          <wp:docPr id="${picId}" name="模板${picId}"/>
+          <wp:cNvGraphicFramePr><a:graphicFrameLocks xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" noChangeAspect="1"/></wp:cNvGraphicFramePr>
+          <a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+            <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
+              <pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+                <pic:nvPicPr>
+                  <pic:cNvPr id="${picId}" name="模板${picId}.png"/>
+                  <pic:cNvPicPr/>
+                </pic:nvPicPr>
+                <pic:blipFill>
+                  <a:blip r:embed="${rId}" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"/>
+                  <a:stretch><a:fillRect/></a:stretch>
+                </pic:blipFill>
+                <pic:spPr>
+                  <a:xfrm><a:off x="0" y="0"/><a:ext cx="${cxEmu}" cy="${cyEmu}"/></a:xfrm>
+                  <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+                </pic:spPr>
+              </pic:pic>
+            </a:graphicData>
+          </a:graphic>
+        </wp:inline>
+      </w:drawing>
+    </w:r>
+  </w:p>`;
+}
+
+// SVG 字符串 → PNG dataURL（高分辨率）
+function svgToPngDataURL(svgStr, targetWidth){
+  return new Promise((resolve,reject)=>{
+    const svgBlob=new Blob([svgStr],{type:'image/svg+xml;charset=utf-8'});
+    const url=URL.createObjectURL(svgBlob);
+    const img=new Image();
+    img.onload=()=>{
+      const scale = targetWidth / img.width;
+      const canvas=document.createElement('canvas');
+      canvas.width=Math.round(img.width*scale);
+      canvas.height=Math.round(img.height*scale);
+      const ctx=canvas.getContext('2d');
+      ctx.fillStyle='#fff';
+      ctx.fillRect(0,0,canvas.width,canvas.height);
+      ctx.drawImage(img,0,0,canvas.width,canvas.height);
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL('image/png'));
+    };
+    img.onerror=()=>{ URL.revokeObjectURL(url); reject(new Error('SVG 转 PNG 失败')); };
+    img.src=url;
+  });
+}
+
+/* ==================== OMR：图像识别 ==================== */
+/* 给定模板坐标系（与 buildTemplateSVG 一致），算出每个圆圈的中心坐标。
+   学生扫描图经透视矫正后映射到这个坐标系，对每个圆圈采样灰度判断是否涂黑。 */
+function computeBubblePositions(){
+  const {W,H,marginX,marginY,sidCols,sidDigits}=TPL;
+  const {nTF,nCh}=getQCounts();
+  const M=getTemplateMetrics();
+  const bubbleR=M.bubbleR;
+  const sidX=marginX+20;
+  const sidY=marginY+22+M.titleFont;
+  const sidColW=M.sidColW, sidRowH=M.sidRowH;
+
+  // 学号圆圈：sid[col][digit] = {cx, cy}
+  const sid=[];
+  for(let c=0;c<sidCols;c++){
+    sid.push([]);
+    for(let d=0;d<sidDigits;d++){
+      sid[c].push({cx:sidX+c*sidColW+sidColW/2, cy:sidY+28+d*sidRowH});
+    }
+  }
+  // 判断题
+  const sidBottom = sidY + 28 + (sidDigits-1)*sidRowH + bubbleR + 4;
+  const tfY = sidBottom + 16;
+  const tfStartY = tfY + M.sectionFont + 3;
+  const tfPerRow = 4;
+  const tfCellW = (W - marginX*2 - 10) / tfPerRow;
+  const tfRowH = M.tfRowH;
+  const tf=[];
+  for(let i=0;i<nTF;i++){
+    const r=Math.floor(i/tfPerRow), c=i%tfPerRow;
+    const cellX = marginX + 5 + c*tfCellW;
+    const cellY = tfStartY + r*tfRowH;
+    const cy=cellY+M.optFont+bubbleR+3;
+    tf.push({
+      T:{cx:cellX+26, cy},
+      F:{cx:cellX+26+M.tfOptGap, cy},
+    });
+  }
+  const tfBottom = nTF>0 ? tfStartY + Math.ceil(nTF/tfPerRow)*tfRowH + 6 : sidBottom + 16;
+  // 选择题
+  const chY = tfBottom;
+  const chStartY = chY + M.sectionFont + 3;
+  const chPerRow = 4;
+  const chCellW = (W - marginX*2 - 10) / chPerRow;
+  const chRowH = M.chRowH;
+  const ch=[];
+  for(let i=0;i<nCh;i++){
+    const r=Math.floor(i/chPerRow), c=i%chPerRow;
+    const cellX = marginX + 5 + c*chCellW;
+    const cellY = chStartY + r*chRowH;
+    const cy=cellY+M.optFont+bubbleR+3;
+    const opts={};
+    'ABCD'.split('').forEach((opt,k)=>{
+      opts[opt]={cx:cellX+26+k*M.chOptGap, cy};
+    });
+    ch.push(opts);
+  }
+  return {sid, tf, ch, bubbleR};
+}
+
+// 找四角定位标记：在每个角的搜索区里找最大的黑色连通块的重心
+function findFiducials(imgData, w, h){
+  const data=imgData.data;
+  // 灰度 + 自适应阈值
+  const grays=new Uint8Array(w*h);
+  let sum=0;
+  for(let i=0;i<w*h;i++){
+    const g=(data[i*4]+data[i*4+1]+data[i*4+2])/3;
+    grays[i]=g; sum+=g;
+  }
+  const meanG=sum/(w*h);
+  const thr = Math.max(60, meanG*0.5);
+
+  // 在指定矩形区域内，做连通分量分析，返回最大连通块的重心和面积
+  function biggestBlob(x0,y0,x1,y1){
+    const rw=x1-x0, rh=y1-y0;
+    const visited=new Uint8Array(rw*rh);
+    let best=null;
+    const stack=new Int32Array(rw*rh*2);
+    for(let y=0;y<rh;y++){
+      for(let x=0;x<rw;x++){
+        const idx=y*rw+x;
+        if(visited[idx]) continue;
+        const gIdx=(y+y0)*w+(x+x0);
+        if(grays[gIdx]>=thr){ visited[idx]=1; continue; }
+        // BFS/DFS
+        let sp=0; stack[sp++]=x; stack[sp++]=y;
+        let sx=0, sy=0, cnt=0;
+        let minX=x, maxX=x, minY=y, maxY=y;
+        while(sp>0){
+          const py=stack[--sp], px=stack[--sp];
+          const pi=py*rw+px;
+          if(px<0||py<0||px>=rw||py>=rh||visited[pi]) continue;
+          const gi=(py+y0)*w+(px+x0);
+          if(grays[gi]>=thr){ visited[pi]=1; continue; }
+          visited[pi]=1;
+          sx+=px+x0; sy+=py+y0; cnt++;
+          if(px<minX)minX=px; if(px>maxX)maxX=px;
+          if(py<minY)minY=py; if(py>maxY)maxY=py;
+          // 入栈 4 邻居
+          stack[sp++]=px+1; stack[sp++]=py;
+          stack[sp++]=px-1; stack[sp++]=py;
+          stack[sp++]=px;   stack[sp++]=py+1;
+          stack[sp++]=px;   stack[sp++]=py-1;
+        }
+        if(cnt<30) continue;
+        // 形状过滤：定位标记是方形，长宽比应该 0.5-2
+        const bw=maxX-minX+1, bh=maxY-minY+1;
+        const ratio = bw/bh;
+        if(ratio<0.4 || ratio>2.5) continue;
+        // 填充率：连通块面积 / 外接矩形面积 应较高（实心方块）
+        const fill = cnt / (bw*bh);
+        if(fill < 0.5) continue;
+        if(!best || cnt>best.count){
+          best={x:sx/cnt, y:sy/cnt, count:cnt, bw, bh};
+        }
+      }
+    }
+    return best;
+  }
+  const qw=Math.floor(w*0.30), qh=Math.floor(h*0.30);
+  const TL=biggestBlob(0,0,qw,qh);
+  const TR=biggestBlob(w-qw,0,w,qh);
+  const BL=biggestBlob(0,h-qh,qw,h);
+  const BR=biggestBlob(w-qw,h-qh,w,h);
+  if(!TL||!TR||!BL||!BR) return null;
+  return {TL,TR,BL,BR};
+}
+
+// 解透视变换矩阵：把扫描图中的四个角映射到模板坐标系
+// 参考：从源四边形到目标四边形的 3x3 homography
+// 这里用简化的双线性插值（对答题卡这种近乎规则的扫描已经够）
+// src 四点对应到 dst 四点（顺序：TL, TR, BL, BR）
+function solveHomography(src, dst){
+  // 解 8 个未知数的线性方程 Ax = b
+  // 每对点贡献 2 行方程：
+  //   x' = (h0*x + h1*y + h2) / (h6*x + h7*y + 1)
+  //   y' = (h3*x + h4*y + h5) / (h6*x + h7*y + 1)
+  const A=[], b=[];
+  for(let i=0;i<4;i++){
+    const {x:sx,y:sy}=src[i];
+    const {x:dx,y:dy}=dst[i];
+    A.push([sx, sy, 1, 0, 0, 0, -sx*dx, -sy*dx]);
+    A.push([0, 0, 0, sx, sy, 1, -sx*dy, -sy*dy]);
+    b.push(dx); b.push(dy);
+  }
+  // 高斯消元解 8x8
+  const n=8;
+  for(let i=0;i<n;i++){
+    // 选主元
+    let mx=Math.abs(A[i][i]), mxRow=i;
+    for(let k=i+1;k<n;k++){
+      if(Math.abs(A[k][i])>mx){mx=Math.abs(A[k][i]); mxRow=k;}
+    }
+    if(mx<1e-9) return null;
+    [A[i],A[mxRow]]=[A[mxRow],A[i]];
+    [b[i],b[mxRow]]=[b[mxRow],b[i]];
+    // 消元
+    for(let k=i+1;k<n;k++){
+      const f=A[k][i]/A[i][i];
+      for(let j=i;j<n;j++) A[k][j]-=f*A[i][j];
+      b[k]-=f*b[i];
+    }
+  }
+  // 回代
+  const h=new Array(n);
+  for(let i=n-1;i>=0;i--){
+    let s=b[i];
+    for(let j=i+1;j<n;j++) s-=A[i][j]*h[j];
+    h[i]=s/A[i][i];
+  }
+  return h; // [h0..h7], h8=1
+}
+// 用矩阵把模板坐标 (tx,ty) 反映射到扫描图坐标 (sx,sy)
+// 这里我们 src=扫描图四角，dst=模板四角；要反过来：given (tx,ty) in template, find (sx,sy) in scan
+// 所以传参时反过来用：src=模板四角, dst=扫描图四角
+function applyH(h, x, y){
+  const w = h[6]*x + h[7]*y + 1;
+  return {
+    x: (h[0]*x + h[1]*y + h[2]) / w,
+    y: (h[3]*x + h[4]*y + h[5]) / w,
+  };
+}
+
+// 在扫描图上、给定圆心，采样一个小窗口的灰度特征
+function sampleBubble(imgData, w, h, cx, cy, radius){
+  const data=imgData.data;
+  let sum=0, cnt=0, dark=0, veryDark=0, minG=255;
+  const r=Math.max(2, Math.round(radius));
+  const x0=Math.max(0,Math.round(cx-r)), x1=Math.min(w,Math.round(cx+r));
+  const y0=Math.max(0,Math.round(cy-r)), y1=Math.min(h,Math.round(cy+r));
+  for(let y=y0;y<y1;y++){
+    for(let x=x0;x<x1;x++){
+      const dx=x-cx, dy=y-cy;
+      const d2=dx*dx+dy*dy;
+      // 避开圆心的印刷字母/数字，也避开最外侧圆圈线，只看学生实际填涂区域。
+      if(d2 <= (r*0.86)*(r*0.86) && d2 >= (r*0.34)*(r*0.34)){
+        const i=(y*w+x)*4;
+        const g=(data[i]+data[i+1]+data[i+2])/3;
+        sum += g;
+        if(g<170) dark++;
+        if(g<120) veryDark++;
+        if(g<minG) minG=g;
+        cnt++;
+      }
+    }
+  }
+  const gray=cnt>0 ? sum/cnt : 255;
+  return {
+    gray,
+    minG,
+    darkRatio:cnt ? dark/cnt : 0,
+    veryDarkRatio:cnt ? veryDark/cnt : 0,
+  };
+}
+
+// 主入口：识别一张图
+async function recognizeOMR(file){
+  // 1. 加载图片到 Canvas
+  const img=await loadImage(file);
+  // 缩放到合理尺寸（长边 1400px，太大太慢，太小精度低）
+  const maxSide=1400;
+  const scale=Math.min(1, maxSide/Math.max(img.width,img.height));
+  const cw=Math.round(img.width*scale), ch=Math.round(img.height*scale);
+  const canvas=document.createElement('canvas');
+  canvas.width=cw; canvas.height=ch;
+  const ctx=canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0, cw, ch);
+  const imgData=ctx.getImageData(0,0,cw,ch);
+
+  // 2. 找四角定位标记
+  const fids=findFiducials(imgData, cw, ch);
+  if(!fids) throw new Error('未找到四角定位标记，请确保答题卡四角的黑方块清晰可见');
+
+  // 3. 求透视变换：模板坐标系 → 扫描图坐标系
+  // 模板四角中心（黑方块中心）
+  const {W,H,marginX,marginY,fidSize}=TPL;
+  const tplCorners=[
+    {x:marginX+fidSize/2, y:marginY+fidSize/2},               // TL
+    {x:W-marginX-fidSize/2, y:marginY+fidSize/2},             // TR
+    {x:marginX+fidSize/2, y:H-marginY-fidSize/2},             // BL
+    {x:W-marginX-fidSize/2, y:H-marginY-fidSize/2},           // BR
+  ];
+  const scanCorners=[fids.TL, fids.TR, fids.BL, fids.BR];
+  const H_mat=solveHomography(tplCorners, scanCorners);
+  if(!H_mat) throw new Error('透视矫正失败，请重新拍照（确保答题卡正面拍摄、四角清晰）');
+
+  // 4. 自适应灰度阈值：用所有圆圈区域的灰度分布
+  const positions=computeBubblePositions();
+  // 扫描图上每个像素相当于模板坐标系的多少？
+  // 估算：从 TL→TR 的扫描距离 / 模板距离
+  const dxScan=fids.TR.x-fids.TL.x;
+  const dxTpl=tplCorners[1].x - tplCorners[0].x;
+  const pxPerPt = Math.abs(dxScan/dxTpl);
+  const sampleR = Math.max(3, positions.bubbleR * pxPerPt * 0.7); // 圆内 70% 区域采样
+
+  // 收集所有圆圈灰度
+  const allBubbles=[];
+  function add(pos, tag){
+    const p=applyH(H_mat, pos.cx, pos.cy);
+    const sample=sampleBubble(imgData, cw, ch, p.x, p.y, sampleR);
+    const item={...pos, tag, ...sample, sx:p.x, sy:p.y, score:0, filled:false};
+    allBubbles.push(item);
+    return item;
+  }
+  // 学号
+  const sidGrays=[];
+  for(let c=0;c<positions.sid.length;c++){
+    for(let d=0;d<positions.sid[c].length;d++){
+      sidGrays.push(add(positions.sid[c][d], `sid${c}${d}`));
+    }
+  }
+  // 判断题
+  for(let i=0;i<positions.tf.length;i++){
+    add(positions.tf[i].T, `tf${i}T`);
+    add(positions.tf[i].F, `tf${i}F`);
+  }
+  // 选择题
+  for(let i=0;i<positions.ch.length;i++){
+    for(const opt of 'ABCD'){
+      add(positions.ch[i][opt], `ch${i}${opt}`);
+    }
+  }
+
+  // 阈值：同时看平均灰度、深色像素比例和同题相对差异。
+  // 这样学生没有完全涂满、铅笔偏浅时，也比单一灰度阈值更容易识别。
+  const sorted=[...allBubbles.map(b=>b.gray)].sort((a,b)=>a-b);
+  const median=sorted[Math.floor(sorted.length/2)];
+  const lowQuartile=sorted[Math.floor(sorted.length*0.25)] || median;
+  const thr = Math.min(median * 0.82, lowQuartile + 18);
+  allBubbles.forEach(b=>{
+    const grayScore=Math.max(0,(median-b.gray)/Math.max(1,median));
+    const darkScore=b.darkRatio*1.7 + b.veryDarkRatio*2.2;
+    const minScore=Math.max(0,(median-b.minG)/Math.max(1,median))*0.35;
+    b.score=grayScore + darkScore + minScore;
+    b.filled = b.gray < thr && (b.score > 0.24 || b.darkRatio > 0.16 || b.veryDarkRatio > 0.055);
+  });
+
+  const byTag={};
+  allBubbles.forEach(b=>{ byTag[b.tag]=b; });
+
+  function isFilled(b){ return !!(b && b.filled); }
+  function chooseOne(items, opts){
+    opts=opts||{};
+    const minScore=opts.minScore==null ? 0.28 : opts.minScore;
+    const gap=opts.gap==null ? 0.08 : opts.gap;
+    const sortedItems=[...items].sort((a,b)=>b.score-a.score);
+    const best=sortedItems[0], second=sortedItems[1];
+    if(!best) return {value:' ', warn:false};
+    const groupAvg=items.reduce((a,b)=>a+b.gray,0)/items.length;
+    const groupDarkAvg=items.reduce((a,b)=>a+b.darkRatio,0)/items.length;
+    const groupVeryAvg=items.reduce((a,b)=>a+b.veryDarkRatio,0)/items.length;
+    const scoreGap = second ? best.score - second.score : best.score;
+    const grayDelta = groupAvg - best.gray;
+    const darkDelta = best.darkRatio - groupDarkAvg;
+    const veryDelta = best.veryDarkRatio - groupVeryAvg;
+    const relativeDark =
+      grayDelta > Math.max(12, median*0.055) ||
+      darkDelta > 0.055 ||
+      veryDelta > 0.025;
+    const strong =
+      relativeDark &&
+      scoreGap > gap &&
+      (best.score>=minScore || best.gray < median*0.88 || best.darkRatio > groupDarkAvg+0.07);
+    if(!strong) return {value:' ', warn:false};
+    if(second && second.score>=minScore && Math.abs(best.score-second.score)<gap*1.15){
+      return {value:'?', warn:true};
+    }
+    best.filled=true;
+    return {value:best.value, warn:false};
+  }
+
+  // 5. 解码学号
+  let sid='';
+  let sidWarn=false;
+  for(let c=0;c<positions.sid.length;c++){
+    const items=[];
+    for(let d=0;d<positions.sid[c].length;d++){
+      const b=byTag[`sid${c}${d}`];
+      items.push({...b, value:String(d)});
+    }
+    const picked=chooseOne(items,{minScore:0.18,gap:0.05});
+    if(picked.value==='?' || picked.value===' '){
+      sid+=picked.value==='?' ? '?' : '_';
+      sidWarn=true;
+    }else{
+      sid+=picked.value;
+    }
+  }
+
+  // 6. 解码判断题
+  let tfAns='';
+  for(let i=0;i<positions.tf.length;i++){
+    const items=[
+      {...byTag[`tf${i}T`], value:'T'},
+      {...byTag[`tf${i}F`], value:'F'},
+    ];
+    tfAns+=chooseOne(items,{minScore:0.18,gap:0.045}).value;
+  }
+
+  // 7. 解码选择题
+  let chAns='';
+  for(let i=0;i<positions.ch.length;i++){
+    const items=[];
+    for(const opt of 'ABCD'){
+      items.push({...byTag[`ch${i}${opt}`], value:opt});
+    }
+    chAns+=chooseOne(items,{minScore:0.18,gap:0.05}).value;
+  }
+
+  // 8. 画调试图（圆圈位置 + 是否涂黑）
+  const dbgCanvas=document.createElement('canvas');
+  dbgCanvas.width=cw; dbgCanvas.height=ch;
+  const dctx=dbgCanvas.getContext('2d');
+  dctx.drawImage(canvas,0,0);
+  dctx.lineWidth=2;
+  allBubbles.forEach(b=>{
+    dctx.strokeStyle = isFilled(b) ? '#22c55e' : 'rgba(200,69,58,0.4)';
+    dctx.beginPath();
+    dctx.arc(b.sx, b.sy, sampleR, 0, Math.PI*2);
+    dctx.stroke();
+  });
+  // 画四角
+  dctx.fillStyle='rgba(52,96,125,0.5)';
+  [fids.TL,fids.TR,fids.BL,fids.BR].forEach(p=>{
+    dctx.beginPath(); dctx.arc(p.x,p.y,8,0,Math.PI*2); dctx.fill();
+  });
+  // 压小一点防止 base64 超大
+  const dbgSmall=document.createElement('canvas');
+  const dbgScale=Math.min(1, 600/Math.max(cw,ch));
+  dbgSmall.width=Math.round(cw*dbgScale); dbgSmall.height=Math.round(ch*dbgScale);
+  dbgSmall.getContext('2d').drawImage(dbgCanvas,0,0,dbgSmall.width,dbgSmall.height);
+  const debugImg=dbgSmall.toDataURL('image/jpeg', 0.6);
+
+  return {sid, sidWarn, tfAns, chAns, debugImg};
+}
+function loadImage(file){
+  return new Promise((resolve,reject)=>{
+    const img=new Image();
+    const url=URL.createObjectURL(file);
+    img.onload=()=>{ resolve(img); URL.revokeObjectURL(url); };
+    img.onerror=()=>{ URL.revokeObjectURL(url); reject(new Error('图片加载失败')); };
+    img.src=url;
+  });
+}
+
+/* 把单个上传的 File 展开为一个或多个待识别图像源（Blob / File 都行） */
+async function expandToImageSources(file){
+  const name=(file.name||'').toLowerCase();
+  const isPdf = name.endsWith('.pdf') || file.type==='application/pdf';
+  if(!isPdf){
+    return [{ blob:file, label:file.name }];
+  }
+  if(!window.pdfjsLib){
+    throw new Error('PDF 解析库未加载，请刷新页面后重试（确保网络可访问 cdnjs.cloudflare.com）');
+  }
+  // 确保 worker 路径已设置（防止极端情况下 workerSrc 为空）
+  if(!pdfjsLib.GlobalWorkerOptions.workerSrc){
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  }
+  const buf=await file.arrayBuffer();
+  const pdf=await pdfjsLib.getDocument({data:buf}).promise;
+  const out=[];
+  for(let p=1;p<=pdf.numPages;p++){
+    const page=await pdf.getPage(p);
+    // 渲染到 canvas，长边 ~1800px 保证识别精度
+    const baseViewport=page.getViewport({scale:1});
+    const targetLong=1800;
+    const longSide=Math.max(baseViewport.width, baseViewport.height);
+    const scale=targetLong/longSide;
+    const viewport=page.getViewport({scale});
+    const canvas=document.createElement('canvas');
+    canvas.width=viewport.width; canvas.height=viewport.height;
+    const ctx=canvas.getContext('2d');
+    ctx.fillStyle='#fff'; ctx.fillRect(0,0,canvas.width,canvas.height);
+    await page.render({canvasContext:ctx, viewport}).promise;
+    const blob=await new Promise(res=>canvas.toBlob(res,'image/jpeg',0.92));
+    out.push({ blob, label:`${file.name} · 第${p}页` });
+  }
+  return out;
+}
+
+/* 批量处理填涂卡 */
+async function handleOMRFiles(files){
+  if(!files || !files.length) return;
+  if(!DB.saved){ toast('请先在「标准答案」页保存答案'); go('key'); return; }
+  if(!DB.roster.length){ toast('请先上传学号-姓名名册'); return; }
+
+  const status=document.getElementById('fileStatus');
+  status.innerHTML=`<div class="filechip"><span class="fx">📷</span>
+    <span style="flex:1">共 ${files.length} 个文件，正在展开…</span>
+    <span><span class="loading"></span></span></div>`;
+
+  const rosterMap={};
+  DB.roster.forEach(r=>{ rosterMap[r.id]=r.name; });
+
+  // 把每个上传文件展开（PDF→多页图片，图片→自身）
+  const allSources=[];
+  for(const f of files){
+    try{
+      const srcs=await expandToImageSources(f);
+      allSources.push(...srcs);
+    }catch(err){
+      allSources.push({ blob:null, label:f.name, expandError:err.message||String(err) });
+    }
+  }
+
+  const newStudents=[];
+  let okCount=0, failCount=0;
+  const failures=[];
+
+  for(let idx=0;idx<allSources.length;idx++){
+    const src=allSources[idx];
+    status.innerHTML=`<div class="filechip"><span class="fx">📷</span>
+      <span style="flex:1">${src.label}</span>
+      <span><span class="loading"></span>${idx+1}/${allSources.length}</span></div>`;
+    if(src.expandError){
+      failCount++; failures.push(`${src.label}：${src.expandError}`); continue;
+    }
+    try{
+      const r=await recognizeOMR(src.blob);
+      const cleanSid=r.sid.replace(/^0+/,'') || r.sid;
+      let name = rosterMap[r.sid] || rosterMap[cleanSid] || null;
+      if(!name && !/[_?]/.test(r.sid)){
+        for(const k of Object.keys(rosterMap)){
+          if(k.replace(/^0+/,'')===cleanSid){ name=rosterMap[k]; break; }
+        }
+      }
+      const student={
+        id:Date.now()+Math.random(),
+        sid:r.sid,
+        name: name || (`未匹配·学号 ${r.sid}`),
+        tfAns:r.tfAns,
+        choiceAns:r.chAns,
+        parseWarn: '',
+        omrDebugImg: r.debugImg,
+        srcFile: src.label,
+        unmatched: !name,
+      };
+      const warns=[];
+      if(r.sidWarn) warns.push('学号涂卡异常（含 ? 或 _）');
+      if(!name) warns.push('名册中未找到该学号');
+      student.parseWarn=warns.join('；');
+      regrade(student);
+      newStudents.push(student);
+      okCount++;
+    }catch(err){
+      failCount++;
+      failures.push(`${src.label}：${err.message||err}`);
+    }
+  }
+
+  // 合并/覆盖：能识别出有效 sid 的按 sid 去重；其余的按文件名+sid 区分
+  const byKey={};
+  [...DB.students, ...newStudents].forEach(s=>{
+    let k;
+    if(s.sid && !/[_?]/.test(s.sid)){
+      k = 'sid:'+s.sid;
+    }else{
+      k = 'file:'+(s.srcFile||s.id);
+    }
+    byKey[k]=s;
+  });
+  DB.students = Object.values(byKey);
+  save();
+
+  let html=`<div class="filechip" style="background:rgba(63,125,82,.1);">
+    <span class="fx" style="background:var(--green)">✓</span>
+    <span style="flex:1">成功识别 ${okCount} 张</span>`;
+  if(failCount) html+=`<span style="color:var(--red);font-weight:700">失败 ${failCount}</span>`;
+  html+='</div>';
+  if(failures.length){
+    html+=`<div class="mini" style="color:var(--red);margin-top:6px;">${failures.join('<br>')}</div>`;
+  }
+  status.innerHTML=html;
+  toast(`已处理 ${okCount} 张`);
+  renderGradeResult();
+  document.getElementById('gradeResultBox').scrollIntoView({behavior:'smooth'});
+}
+
+/* ==================== 初始化 ==================== */
+(function init(){
+  document.getElementById('scoreTF').value=DB.scoreTF;
+  document.getElementById('scoreChoice').value=DB.scoreChoice;
+  document.getElementById('keyTF').value=DB.keyTF;
+  document.getElementById('keyChoice').value=DB.keyChoice;
+  if(DB.saved){
+    renderKeyPreview();
+    document.getElementById('keySaved').textContent=
+      `✓ 已保存：判断 ${DB.keyTF.length} 题 × ${DB.scoreTF} 分 ＋ 选择 ${DB.keyChoice.length} 题 × ${DB.scoreChoice} 分 ＝ 总分 ${DB.keyTF.length*DB.scoreTF+DB.keyChoice.length*DB.scoreChoice}`;
+  }
+  // 应用模式
+  setMode(DB.mode || 'text');
+  // 应用每页布局，默认 2 张/页
+  setPerPage(normalizePerPage(DB.perPage||2));
+  // 名册 tab 初始化
+  setRosterTab('xlsx');
+  // 渲染名册
+  renderRoster();
+  // 拖拽（.docx）
+  const dz=document.getElementById('dropZone');
+  if(dz){
+    ['dragenter','dragover'].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.style.borderColor='var(--blue)';}));
+    ['dragleave','drop'].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.style.borderColor='var(--line)';}));
+    dz.addEventListener('drop',e=>{ if(e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); });
+  }
+})();
+</script>
+</body>
+</html>
