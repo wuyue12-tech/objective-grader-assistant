@@ -1188,7 +1188,10 @@ const TPL={
   bubbleR:8,                  // 圆圈半径
   bubbleStroke:1.2,
 };
-function getQCounts(){
+function getQCounts(source='template'){
+  if(source==='recognition' && DB.saved){
+    return { nTF: DB.keyTF.length, nCh: DB.keyChoice.length };
+  }
   const fallbackTF=DB.saved ? DB.keyTF.length : 8;
   const fallbackCh=DB.saved ? DB.keyChoice.length : 20;
   return {
@@ -1196,8 +1199,8 @@ function getQCounts(){
     nCh: normalizeCount(DB.tplChoiceCount, fallbackCh, 120),
   };
 }
-function getTemplateMetrics(){
-  const {nTF,nCh}=getQCounts();
+function getTemplateMetrics(source='template'){
+  const {nTF,nCh}=getQCounts(source);
   const total=nTF+nCh;
   let scale=1;
   if(total<=12) scale=1.6;
@@ -1656,10 +1659,10 @@ function svgToPngDataURL(svgStr, targetWidth){
 /* ==================== OMR：图像识别 ==================== */
 /* 给定模板坐标系（与 buildTemplateSVG 一致），算出每个圆圈的中心坐标。
    学生扫描图经透视矫正后映射到这个坐标系，对每个圆圈采样灰度判断是否涂黑。 */
-function computeBubblePositions(){
+function computeBubblePositions(source='template'){
   const {W,H,marginX,marginY,sidCols,sidDigits}=TPL;
-  const {nTF,nCh}=getQCounts();
-  const M=getTemplateMetrics();
+  const {nTF,nCh}=getQCounts(source);
+  const M=getTemplateMetrics(source);
   const bubbleR=M.bubbleR;
   const sidX=marginX+20;
   const sidY=marginY+22+M.titleFont;
@@ -1994,13 +1997,13 @@ async function recognizeOMR(file){
   if(!H_mat) throw new Error('透视矫正失败，请重新拍照（确保答题卡正面拍摄、四角清晰）');
 
   // 4. 自适应灰度阈值：用所有圆圈区域的灰度分布
-  const positions=computeBubblePositions();
+  const positions=computeBubblePositions('recognition');
   // 扫描图上每个像素相当于模板坐标系的多少？
   // 估算：从 TL→TR 的扫描距离 / 模板距离
   const dxScan=fids.TR.x-fids.TL.x;
   const dxTpl=tplCorners[1].x - tplCorners[0].x;
   const pxPerPt = Math.abs(dxScan/dxTpl);
-  const M=getTemplateMetrics();
+  const M=getTemplateMetrics('recognition');
   const sampleR = Math.max(3, positions.bubbleR * pxPerPt * 0.72); // 圆内为主
   const maxSearchPt = Math.min(M.chOptGap, M.tfOptGap) * 0.44;
   const searchR = Math.max(3, Math.min(positions.bubbleR * 0.95, maxSearchPt) * pxPerPt); // 允许涂到圈边外，但不越到相邻选项
