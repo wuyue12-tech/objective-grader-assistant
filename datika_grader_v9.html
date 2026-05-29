@@ -578,6 +578,7 @@ function normalizeCount(n, fallback, max){
 function getSetupStatus(){
   const counts=getQCounts();
   const total=counts.nTF+counts.nCh;
+  const shapeText=markShape()==='rect' ? '长方框' : '圆圈';
   const hasKey=!!DB.saved;
   const keyTF=DB.keyTF.length;
   const keyCh=DB.keyChoice.length;
@@ -586,15 +587,15 @@ function getSetupStatus(){
     return {type:'bad', ok:false, text:'模板题量为 0，请先在「模板」页设置判断题或选择题数量。'};
   }
   if(!hasKey){
-    return {type:'warn', ok:false, text:`模板题量：判断 ${counts.nTF} 题、选择 ${counts.nCh} 题。标准答案尚未保存。`};
+    return {type:'warn', ok:false, text:`模板题量：判断 ${counts.nTF} 题、选择 ${counts.nCh} 题；填涂样式：${shapeText}。标准答案尚未保存。`};
   }
   if(mismatch){
-    return {type:'bad', ok:false, text:`题量不一致：模板为判断 ${counts.nTF} 题、选择 ${counts.nCh} 题；标准答案为判断 ${keyTF} 题、选择 ${keyCh} 题。请先补齐答案或调整模板题量。`};
+    return {type:'bad', ok:false, text:`题量不一致：模板为判断 ${counts.nTF} 题、选择 ${counts.nCh} 题；标准答案为判断 ${keyTF} 题、选择 ${keyCh} 题；填涂样式：${shapeText}。请先补齐答案或调整模板题量。`};
   }
   if(!DB.roster.length){
-    return {type:'warn', ok:false, text:`题量已匹配：判断 ${counts.nTF} 题、选择 ${counts.nCh} 题。批改前还需要导入学生名册。`};
+    return {type:'warn', ok:false, text:`题量已匹配：判断 ${counts.nTF} 题、选择 ${counts.nCh} 题；填涂样式：${shapeText}。批改前还需要导入学生名册。`};
   }
-  return {type:'ok', ok:true, text:`设置已匹配：判断 ${counts.nTF} 题、选择 ${counts.nCh} 题，名册 ${DB.roster.length} 人。`};
+  return {type:'ok', ok:true, text:`设置已匹配：判断 ${counts.nTF} 题、选择 ${counts.nCh} 题；填涂样式：${shapeText}；名册 ${DB.roster.length} 人。`};
 }
 function renderSetupCheck(){
   const status=getSetupStatus();
@@ -1278,7 +1279,7 @@ function getQCounts(source='template'){
     nCh: normalizeCount(DB.tplChoiceCount, fallbackCh, 120),
   };
 }
-function getTemplateMetrics(source='template'){
+function getTemplateMetrics(source='template', shapeOverride){
   const {nTF,nCh}=getQCounts(source);
   const total=nTF+nCh;
   let scale=1;
@@ -1287,7 +1288,7 @@ function getTemplateMetrics(source='template'){
   else if(total<=40) scale=1.18;
   const fit=(v,min,max)=>Math.max(min,Math.min(max,v));
   const bubbleR=fit(TPL.bubbleR*scale,8,12);
-  const rectMode=markShape()==='rect';
+  const rectMode=markShape(shapeOverride)==='rect';
   return {
     scale,
     bubbleR,
@@ -1330,8 +1331,8 @@ function cardInnerSVG(){
   const full=buildTemplateSVG();
   return full.replace(/^<svg[^>]*>/,'').replace(/<\/svg>\s*$/,'');
 }
-function markShape(){
-  return DB.markShape==='rect' ? 'rect' : 'circle';
+function markShape(shapeOverride){
+  return (shapeOverride || DB.markShape)==='rect' ? 'rect' : 'circle';
 }
 function rectMarkSize(r){
   return {
@@ -1538,6 +1539,7 @@ function setMarkShape(shape){
   DB.markShape = shape==='rect' ? 'rect' : 'circle';
   save();
   syncTemplateControls();
+  renderSetupCheck();
   renderTemplatePreview();
 }
 
@@ -1744,12 +1746,12 @@ function svgToPngDataURL(svgStr, targetWidth){
 }
 
 /* ==================== OMR：图像识别 ==================== */
-/* 给定模板坐标系（与 buildTemplateSVG 一致），算出每个圆圈的中心坐标。
-   学生扫描图经透视矫正后映射到这个坐标系，对每个圆圈采样灰度判断是否涂黑。 */
-function computeBubblePositions(source='template'){
+/* 给定模板坐标系（与 buildTemplateSVG 一致），算出每个填涂框的中心坐标。
+   学生扫描图经透视矫正后映射到这个坐标系，对每个填涂框采样灰度判断是否涂黑。 */
+function computeBubblePositions(source='template', shapeOverride){
   const {W,H,marginX,marginY,sidCols,sidDigits}=TPL;
   const {nTF,nCh}=getQCounts(source);
-  const M=getTemplateMetrics(source);
+  const M=getTemplateMetrics(source, shapeOverride);
   const bubbleR=M.bubbleR;
   const sidX=marginX+20;
   const sidY=marginY+22+M.titleFont;
@@ -1985,33 +1987,36 @@ function applyH(h, x, y){
   };
 }
 
-// 在扫描图上、给定圆心，采样一个小窗口的平均灰度
-function sampleGray(imgData, w, h, cx, cy, radius){
-  const data=imgData.data;
-  let sum=0, cnt=0;
-  const r=Math.max(2, Math.round(radius));
-  const x0=Math.max(0,Math.round(cx-r)), x1=Math.min(w,Math.round(cx+r));
-  const y0=Math.max(0,Math.round(cy-r)), y1=Math.min(h,Math.round(cy+r));
-  for(let y=y0;y<y1;y++){
-    for(let x=x0;x<x1;x++){
-      const dx=x-cx, dy=y-cy;
-      if(dx*dx+dy*dy <= r*r){
-        const i=(y*w+x)*4;
-        sum += (data[i]+data[i+1]+data[i+2])/3;
-        cnt++;
-      }
-    }
+function getSampleSpec(bubbleR, pxPerPt, shapeOverride){
+  if(markShape(shapeOverride)==='rect'){
+    const size=rectMarkSize(bubbleR);
+    return {
+      shape:'rect',
+      sampleW:Math.max(4, size.w*pxPerPt*0.78),
+      sampleH:Math.max(3, size.h*pxPerPt*0.72),
+      drawW:Math.max(4, size.w*pxPerPt),
+      drawH:Math.max(3, size.h*pxPerPt),
+    };
   }
-  return cnt>0 ? sum/cnt : 255;
+  const r=Math.max(3, bubbleR*pxPerPt*0.72);
+  return {shape:'circle', r, drawR:r};
 }
 
-// 选项识别不能只盯圆心：学生常常涂偏、涂到圈边外，扫描也会有轻微透视误差。
-// 这里在圆心附近做小范围搜索，返回“最像涂点”的位置和得分。
-function sampleBubbleMark(imgData, w, h, cx, cy, radius, searchRadius){
+function sampleContains(spec, dx, dy){
+  if(spec.shape==='rect'){
+    return Math.abs(dx)<=spec.sampleW/2 && Math.abs(dy)<=spec.sampleH/2;
+  }
+  return dx*dx+dy*dy<=spec.r*spec.r;
+}
+
+// 选项识别不能只盯中心：学生常常涂偏，扫描也会有轻微透视误差。
+// 圆圈模板按圆形采样；长方框模板按矩形采样，避免继续把方框当圆圈识别。
+function sampleBubbleMark(imgData, w, h, cx, cy, spec, searchRadius){
   const data=imgData.data;
-  const rr=Math.max(3, Math.round(radius));
+  const rx=spec.shape==='rect' ? Math.max(2, Math.round(spec.sampleW/2)) : Math.max(3, Math.round(spec.r));
+  const ry=spec.shape==='rect' ? Math.max(2, Math.round(spec.sampleH/2)) : rx;
   const sr=Math.max(1, Math.round(searchRadius));
-  const step=Math.max(2, Math.round(rr*0.55));
+  const step=Math.max(2, Math.round(Math.max(rx,ry)*0.55));
   const offsets=[{x:0,y:0}];
   for(let oy=-sr;oy<=sr;oy+=step){
     for(let ox=-sr;ox<=sr;ox+=step){
@@ -2023,12 +2028,12 @@ function sampleBubbleMark(imgData, w, h, cx, cy, radius, searchRadius){
   offsets.forEach(o=>{
     const tx=cx+o.x, ty=cy+o.y;
     let sum=0, cnt=0, dark=0, veryDark=0;
-    const x0=Math.max(0,Math.round(tx-rr)), x1=Math.min(w,Math.round(tx+rr));
-    const y0=Math.max(0,Math.round(ty-rr)), y1=Math.min(h,Math.round(ty+rr));
+    const x0=Math.max(0,Math.round(tx-rx)), x1=Math.min(w,Math.round(tx+rx));
+    const y0=Math.max(0,Math.round(ty-ry)), y1=Math.min(h,Math.round(ty+ry));
     for(let y=y0;y<y1;y++){
       for(let x=x0;x<x1;x++){
         const dx=x-tx, dy=y-ty;
-        if(dx*dx+dy*dy<=rr*rr){
+        if(sampleContains(spec, dx, dy)){
           const i=(y*w+x)*4;
           const g=(data[i]+data[i+1]+data[i+2])/3;
           sum+=g; cnt++;
@@ -2050,6 +2055,17 @@ function sampleBubbleMark(imgData, w, h, cx, cy, radius, searchRadius){
     }
   });
   return best;
+}
+
+function drawDebugMark(ctx, b, spec, filled){
+  ctx.strokeStyle = filled ? '#22c55e' : 'rgba(200,69,58,0.42)';
+  ctx.beginPath();
+  if(spec.shape==='rect'){
+    ctx.rect(b.sx-spec.drawW/2, b.sy-spec.drawH/2, spec.drawW, spec.drawH);
+  }else{
+    ctx.arc(b.sx, b.sy, spec.drawR, 0, Math.PI*2);
+  }
+  ctx.stroke();
 }
 
 // 主入口：识别一张图
@@ -2083,23 +2099,24 @@ async function recognizeOMR(file){
   const H_mat=solveHomography(tplCorners, scanCorners);
   if(!H_mat) throw new Error('透视矫正失败，请重新拍照（确保答题卡正面拍摄、四角清晰）');
 
-  // 4. 自适应灰度阈值：用所有圆圈区域的灰度分布
-  const positions=computeBubblePositions();
+  // 4. 自适应灰度阈值：用所有填涂框区域的灰度分布
   // 扫描图上每个像素相当于模板坐标系的多少？
   // 估算：从 TL→TR 的扫描距离 / 模板距离
   const dxScan=fids.TR.x-fids.TL.x;
   const dxTpl=tplCorners[1].x - tplCorners[0].x;
   const pxPerPt = Math.abs(dxScan/dxTpl);
-  const M=getTemplateMetrics();
-  const sampleR = Math.max(3, positions.bubbleR * pxPerPt * 0.72); // 圆内为主
+  const activeShape=markShape();
+  const positions=computeBubblePositions('template', activeShape);
+  const M=getTemplateMetrics('template', activeShape);
+  const sampleSpec=getSampleSpec(positions.bubbleR, pxPerPt, activeShape);
   const maxSearchPt = Math.min(M.chOptGap, M.tfOptGap) * 0.44;
   const searchR = Math.max(3, Math.min(positions.bubbleR * 0.95, maxSearchPt) * pxPerPt); // 允许涂到圈边外，但不越到相邻选项
 
-  // 收集所有圆圈灰度
+  // 收集所有填涂框灰度
   const allBubbles=[];
   function add(pos, tag){
     const p=applyH(H_mat, pos.cx, pos.cy);
-    const mark=sampleBubbleMark(imgData, cw, ch, p.x, p.y, sampleR, searchR);
+    const mark=sampleBubbleMark(imgData, cw, ch, p.x, p.y, sampleSpec, searchR);
     allBubbles.push({...pos, tag, gray:mark.gray, score:mark.score, rawScore:mark.rawScore, darkRatio:mark.darkRatio, sx:mark.sx, sy:mark.sy, baseX:p.x, baseY:p.y, dist:mark.dist});
     return mark.gray;
   }
@@ -2188,17 +2205,14 @@ async function recognizeOMR(file){
     chAns+=pickSingle(candidates) || ' ';
   }
 
-  // 8. 画调试图（圆圈位置 + 是否涂黑）
+  // 8. 画调试图（填涂框位置 + 是否涂黑）
   const dbgCanvas=document.createElement('canvas');
   dbgCanvas.width=cw; dbgCanvas.height=ch;
   const dctx=dbgCanvas.getContext('2d');
   dctx.drawImage(canvas,0,0);
   dctx.lineWidth=2;
   allBubbles.forEach(b=>{
-    dctx.strokeStyle = isFilledBubble(b) ? '#22c55e' : 'rgba(200,69,58,0.4)';
-    dctx.beginPath();
-    dctx.arc(b.sx, b.sy, sampleR, 0, Math.PI*2);
-    dctx.stroke();
+    drawDebugMark(dctx, b, sampleSpec, isFilledBubble(b));
   });
   // 画四角
   dctx.fillStyle='rgba(52,96,125,0.5)';
