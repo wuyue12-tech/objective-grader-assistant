@@ -430,15 +430,6 @@
       </div>
 
       <div class="field">
-        <label>填涂样式</label>
-        <div class="seg">
-          <button class="on" id="shapeBtnCircle" onclick="setMarkShape('circle')">圆圈</button>
-          <button id="shapeBtnRect" onclick="setMarkShape('rect')">长方框</button>
-        </div>
-        <p class="mini" id="shapeHint">圆圈兼容旧模板；长方框适合 2B 笔横向一笔涂满。同一场考试请使用同一种模板。</p>
-      </div>
-
-      <div class="field">
         <label>每页 A4 排几张答题卡（节省纸张）</label>
         <div class="seg">
           <button id="ppBtn1" onclick="setPerPage(1)">1张</button>
@@ -458,7 +449,7 @@
       <div style="height:8px;"></div>
       <button class="btn-ghost" onclick="downloadTemplateSVG()">下载 SVG 模板</button>
       <p class="mini" style="margin-top:8px;">
-        模板含：7 位学号填涂区 + 判断题 + 选择题，题数可在本页直接设置；批改前需与标准答案数量一致。<br>
+        模板含：7 位学号填涂区 + 判断题 + 选择题，统一使用长方框填涂，2B 笔横向一笔涂满即可。<br>
         流程：选择每页数量 → 下载/打印 → 裁开 → 学生填涂 → 扫描裁开后的单张或多页 PDF 上传。
       </p>
       <p class="mini" style="margin-top:10px;text-align:center;color:var(--mute);">© WuYue · 客观题批改助手</p>
@@ -508,7 +499,7 @@ let DB={
   perPage:2,    // 1 | 2 | 4 | 6 | 8 张答题卡/A4
   tplTFCount:null,
   tplChoiceCount:null,
-  markShape:'circle', // circle | rect
+  markShape:'rect',
   roster:[],    // [{id:'001', name:'张三'}, ...]
   students:[]   // {id, name, sid, tfAns, choiceAns, tfCorrect, choiceCorrect, score, totalScore, parseWarn, omrDebugImg?}
 };
@@ -525,7 +516,7 @@ try{
     }
   }
 }catch(e){}
-if(DB.markShape==='square') DB.markShape='rect';
+DB.markShape='rect';
 function save(){
   // 不保存 omrDebugImg（base64 太大），保留其他
   const slim={...DB, students:DB.students.map(s=>{const c={...s};delete c.omrDebugImg;return c;})};
@@ -578,24 +569,23 @@ function normalizeCount(n, fallback, max){
 function getSetupStatus(){
   const counts=getQCounts();
   const total=counts.nTF+counts.nCh;
-  const shapeText=markShape()==='rect' ? '长方框' : '圆圈';
   const hasKey=!!DB.saved;
   const keyTF=DB.keyTF.length;
   const keyCh=DB.keyChoice.length;
   const mismatch=hasKey && (counts.nTF!==keyTF || counts.nCh!==keyCh);
   if(total<=0){
-    return {type:'bad', ok:false, text:'模板题量为 0，请先在「模板」页设置判断题或选择题数量。'};
+    return {type:'bad', ok:false, text:'请先在「模板」页填写题目数量。判断题或选择题至少有一类不能为 0。'};
   }
   if(!hasKey){
-    return {type:'warn', ok:false, text:`模板题量：判断 ${counts.nTF} 题、选择 ${counts.nCh} 题；填涂样式：${shapeText}。标准答案尚未保存。`};
+    return {type:'warn', ok:false, text:`模板已准备好：判断 ${counts.nTF} 题、选择 ${counts.nCh} 题。下一步请到「标准答案」页录入答案。`};
   }
   if(mismatch){
-    return {type:'bad', ok:false, text:`题量不一致：模板为判断 ${counts.nTF} 题、选择 ${counts.nCh} 题；标准答案为判断 ${keyTF} 题、选择 ${keyCh} 题；填涂样式：${shapeText}。请先补齐答案或调整模板题量。`};
+    return {type:'bad', ok:false, text:`题目数量和标准答案数量对不上：模板是判断 ${counts.nTF} 题、选择 ${counts.nCh} 题；答案是判断 ${keyTF} 题、选择 ${keyCh} 题。请先改成一致，再上传学生答题卡。`};
   }
   if(!DB.roster.length){
-    return {type:'warn', ok:false, text:`题量已匹配：判断 ${counts.nTF} 题、选择 ${counts.nCh} 题；填涂样式：${shapeText}。批改前还需要导入学生名册。`};
+    return {type:'warn', ok:false, text:`答案已准备好：共 ${counts.nTF+counts.nCh} 题。批改前请先导入学生名册。`};
   }
-  return {type:'ok', ok:true, text:`设置已匹配：判断 ${counts.nTF} 题、选择 ${counts.nCh} 题；填涂样式：${shapeText}；名册 ${DB.roster.length} 人。`};
+  return {type:'ok', ok:true, text:`可以开始批改：共 ${counts.nTF+counts.nCh} 题，已导入 ${DB.roster.length} 名学生。请上传裁开后的答题卡图片或 PDF。`};
 }
 function renderSetupCheck(){
   const status=getSetupStatus();
@@ -1268,7 +1258,7 @@ const TPL={
   fidSize:18,                 // 定位方块大小
   sidCols:7,                  // 学号位数
   sidDigits:10,               // 0-9
-  bubbleR:8,                  // 圆圈半径
+  bubbleR:8,                  // 填涂框基准尺寸
   bubbleStroke:1.2,
 };
 function getQCounts(source='template'){
@@ -1284,11 +1274,12 @@ function getTemplateMetrics(source='template', shapeOverride){
   const total=nTF+nCh;
   let scale=1;
   if(total<=12) scale=1.6;
-  else if(total<=24) scale=1.38;
+  else if(total<=25) scale=1.38;
   else if(total<=40) scale=1.18;
   const fit=(v,min,max)=>Math.max(min,Math.min(max,v));
   const bubbleR=fit(TPL.bubbleR*scale,8,12);
   const rectMode=markShape(shapeOverride)==='rect';
+  const choiceRowScale=rectMode && total>12 && total<=25 ? 1.18 : scale;
   return {
     scale,
     bubbleR,
@@ -1303,7 +1294,7 @@ function getTemplateMetrics(source='template', shapeOverride){
     sidColW:fit(17*scale,17,21),
     sidRowH:fit(17*scale,17,21),
     tfRowH:fit(27*scale,27,42),
-    chRowH:fit(26*scale,26,40),
+    chRowH:fit(26*choiceRowScale,26,40),
     optStartX:rectMode ? 33 : 22,
     tfOptGap:rectMode ? 28 : fit(22*scale,22,31),
     chOptGap:rectMode ? 26 : fit(17*scale,17,24),
@@ -1331,8 +1322,8 @@ function cardInnerSVG(){
   const full=buildTemplateSVG();
   return full.replace(/^<svg[^>]*>/,'').replace(/<\/svg>\s*$/,'');
 }
-function markShape(shapeOverride){
-  return (shapeOverride || DB.markShape)==='rect' ? 'rect' : 'circle';
+function markShape(){
+  return 'rect';
 }
 function rectMarkSize(r){
   return {
@@ -1503,11 +1494,6 @@ function syncTemplateControls(){
   const ch=document.getElementById('tplChoiceCount');
   if(tf) tf.value=normalizeCount(DB.tplTFCount, DB.keyTF.length||8, 80);
   if(ch) ch.value=normalizeCount(DB.tplChoiceCount, DB.keyChoice.length||20, 120);
-  const shape=markShape();
-  const circleBtn=document.getElementById('shapeBtnCircle');
-  const squareBtn=document.getElementById('shapeBtnRect');
-  if(circleBtn) circleBtn.classList.toggle('on', shape==='circle');
-  if(squareBtn) squareBtn.classList.toggle('on', shape==='rect');
   const hint=document.getElementById('tplCountHint');
   if(hint){
     const {nTF,nCh}=getQCounts();
@@ -1536,7 +1522,7 @@ function setTemplateCounts(){
   renderTemplatePreview();
 }
 function setMarkShape(shape){
-  DB.markShape = shape==='rect' ? 'rect' : 'circle';
+  DB.markShape = 'rect';
   save();
   syncTemplateControls();
   renderSetupCheck();
@@ -1757,7 +1743,7 @@ function computeBubblePositions(source='template', shapeOverride){
   const sidY=marginY+22+M.titleFont;
   const sidColW=M.sidColW, sidRowH=M.sidRowH;
 
-  // 学号圆圈：sid[col][digit] = {cx, cy}
+  // 学号填涂框：sid[col][digit] = {cx, cy}
   const sid=[];
   for(let c=0;c<sidCols;c++){
     sid.push([]);
@@ -1874,6 +1860,8 @@ function findFiducials(imgData, w, h){
     if(!expected) return pickNearCorner(blobs, cornerX, cornerY);
     let best=null, bestScore=-Infinity;
     blobs.forEach(b=>{
+      const boxRatio=b.bw/b.bh;
+      if(boxRatio<0.72 || boxRatio>1.38) return;
       const size=(b.bw+b.bh)/2;
       const sizeRatio=size/expected.size;
       const areaRatio=b.count/expected.count;
@@ -1902,12 +1890,17 @@ function findFiducials(imgData, w, h){
   }
   function geometryLooksGood(TL,TR,BL,BR){
     if(!TL||!TR||!BL||!BR) return false;
+    const {W,H,marginX,marginY,fidSize}=TPL;
+    const tplW = (W-marginX-fidSize/2) - (marginX+fidSize/2);
+    const tplH = (H-marginY-fidSize/2) - (marginY+fidSize/2);
     const topW=Math.hypot(TR.x-TL.x,TR.y-TL.y);
     const bottomW=Math.hypot(BR.x-BL.x,BR.y-BL.y);
     const leftH=Math.hypot(BL.x-TL.x,BL.y-TL.y);
     const rightH=Math.hypot(BR.x-TR.x,BR.y-TR.y);
+    const expectedH=topW*(tplH/tplW);
     if(bottomW<topW*0.55 || bottomW>topW*1.55) return false;
-    if(leftH<topW*0.75 || rightH<topW*0.75) return false;
+    if(leftH<expectedH*0.78 || rightH<expectedH*0.78) return false;
+    if(leftH>expectedH*1.35 || rightH>expectedH*1.35) return false;
     if(BL.y<TL.y+topW*0.55 || BR.y<TR.y+topW*0.55) return false;
     return true;
   }
@@ -2009,19 +2002,20 @@ function sampleContains(spec, dx, dy){
   return dx*dx+dy*dy<=spec.r*spec.r;
 }
 
-// 选项识别不能只盯中心：学生常常涂偏，扫描也会有轻微透视误差。
-// 圆圈模板按圆形采样；长方框模板按矩形采样，避免继续把方框当圆圈识别。
+// 长方框只允许小范围微调，避免吸到题号、标题或相邻选项。
 function sampleBubbleMark(imgData, w, h, cx, cy, spec, searchRadius){
   const data=imgData.data;
   const rx=spec.shape==='rect' ? Math.max(2, Math.round(spec.sampleW/2)) : Math.max(3, Math.round(spec.r));
   const ry=spec.shape==='rect' ? Math.max(2, Math.round(spec.sampleH/2)) : rx;
-  const sr=Math.max(1, Math.round(searchRadius));
+  const sr=Math.max(0, Math.round(searchRadius));
   const step=Math.max(2, Math.round(Math.max(rx,ry)*0.55));
   const offsets=[{x:0,y:0}];
-  for(let oy=-sr;oy<=sr;oy+=step){
-    for(let ox=-sr;ox<=sr;ox+=step){
-      if(ox===0 && oy===0) continue;
-      if(ox*ox+oy*oy<=sr*sr) offsets.push({x:ox,y:oy});
+  if(sr>0){
+    for(let oy=-sr;oy<=sr;oy+=step){
+      for(let ox=-sr;ox<=sr;ox+=step){
+        if(ox===0 && oy===0) continue;
+        if(ox*ox+oy*oy<=sr*sr) offsets.push({x:ox,y:oy});
+      }
     }
   }
   let best={gray:255, score:0, rawScore:0, darkRatio:0, sx:cx, sy:cy, dist:0};
@@ -2110,7 +2104,9 @@ async function recognizeOMR(file){
   const M=getTemplateMetrics('template', activeShape);
   const sampleSpec=getSampleSpec(positions.bubbleR, pxPerPt, activeShape);
   const maxSearchPt = Math.min(M.chOptGap, M.tfOptGap) * 0.44;
-  const searchR = Math.max(3, Math.min(positions.bubbleR * 0.95, maxSearchPt) * pxPerPt); // 允许涂到圈边外，但不越到相邻选项
+  const searchR = activeShape==='rect'
+    ? Math.max(2, Math.min(12, sampleSpec.drawH*0.28))
+    : Math.max(3, Math.min(positions.bubbleR * 0.95, maxSearchPt) * pxPerPt);
 
   // 收集所有填涂框灰度
   const allBubbles=[];
@@ -2154,6 +2150,11 @@ async function recognizeOMR(file){
   function isProminentSingle(first, second){
     if(!first) return false;
     const gap = second ? first.score-second.score : first.score;
+    if(activeShape==='rect'){
+      return first.darkRatio>=0.22 &&
+        first.score>=medianScore-4 &&
+        gap>Math.max(16, first.score*0.22);
+    }
     return first.score>=medianScore+18 && first.gray<median*0.94 && gap>Math.max(18, first.score*0.16);
   }
   function pickSingle(candidates){
@@ -2164,6 +2165,8 @@ async function recognizeOMR(file){
     if(second && secondNearCenter && isFilledBubble(second) && first.score-second.score<Math.max(18, first.score*0.12)) return '?';
     return first.value;
   }
+
+  const recognizedTags=new Set();
 
   // 5. 解码学号
   let sid='';
@@ -2179,6 +2182,7 @@ async function recognizeOMR(file){
     const second={score:secondScore, gray:255};
     if(first && (isFilledBubble(first) || isProminentSingle(first, second)) && (bestScore-secondScore>Math.max(18, bestScore*0.12) || !isFilledBubble(second))){
       sid+=pick;
+      recognizedTags.add(`sid${c}${pick}`);
     }else if(first && isFilledBubble(first) && isFilledBubble(second)){
       sid+='?'; sidWarn=true; // 多涂
     }else{
@@ -2191,7 +2195,9 @@ async function recognizeOMR(file){
   for(let i=0;i<positions.tf.length;i++){
     const bT=allBubbles.find(b=>b.tag===`tf${i}T`);
     const bF=allBubbles.find(b=>b.tag===`tf${i}F`);
-    tfAns+=pickSingle([{...bT,value:'T'}, {...bF,value:'F'}]) || ' ';
+    const picked=pickSingle([{...bT,value:'T'}, {...bF,value:'F'}]);
+    tfAns+=picked || ' ';
+    if(picked) recognizedTags.add(`tf${i}${picked}`);
   }
 
   // 7. 解码选择题
@@ -2202,7 +2208,9 @@ async function recognizeOMR(file){
       const b=allBubbles.find(b=>b.tag===`ch${i}${opt}`);
       candidates.push({...b, value:opt});
     }
-    chAns+=pickSingle(candidates) || ' ';
+    const picked=pickSingle(candidates);
+    chAns+=picked || ' ';
+    if(picked) recognizedTags.add(`ch${i}${picked}`);
   }
 
   // 8. 画调试图（填涂框位置 + 是否涂黑）
@@ -2212,7 +2220,7 @@ async function recognizeOMR(file){
   dctx.drawImage(canvas,0,0);
   dctx.lineWidth=2;
   allBubbles.forEach(b=>{
-    drawDebugMark(dctx, b, sampleSpec, isFilledBubble(b));
+    drawDebugMark(dctx, b, sampleSpec, recognizedTags.has(b.tag));
   });
   // 画四角
   dctx.fillStyle='rgba(52,96,125,0.5)';
