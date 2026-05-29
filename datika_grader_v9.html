@@ -1287,6 +1287,7 @@ function getTemplateMetrics(source='template'){
   else if(total<=40) scale=1.18;
   const fit=(v,min,max)=>Math.max(min,Math.min(max,v));
   const bubbleR=fit(TPL.bubbleR*scale,8,12);
+  const rectMode=markShape()==='rect';
   return {
     scale,
     bubbleR,
@@ -1302,8 +1303,9 @@ function getTemplateMetrics(source='template'){
     sidRowH:fit(17*scale,17,21),
     tfRowH:fit(27*scale,27,42),
     chRowH:fit(26*scale,26,40),
-    tfOptGap:fit(22*scale,22,31),
-    chOptGap:fit(17*scale,17,24),
+    optStartX:rectMode ? 33 : 22,
+    tfOptGap:rectMode ? 28 : fit(22*scale,22,31),
+    chOptGap:rectMode ? 26 : fit(17*scale,17,24),
   };
 }
 function normalizePerPage(n){
@@ -1331,10 +1333,15 @@ function cardInnerSVG(){
 function markShape(){
   return DB.markShape==='rect' ? 'rect' : 'circle';
 }
+function rectMarkSize(r){
+  return {
+    w:(r-0.5)*2,
+    h:(r-0.5)*1.18,
+  };
+}
 function drawMark(svg, cx, cy, r, label, fontSize){
   if(markShape()==='rect'){
-    const w=(r-0.5)*2.65;
-    const h=(r-0.5)*1.35;
+    const {w,h}=rectMarkSize(r);
     svg+=`<rect x="${cx-w/2}" y="${cy-h/2}" width="${w}" height="${h}" rx="1.6" ry="1.6" fill="#fff" stroke="#444" stroke-width="1"/>`;
   }else{
     svg+=`<circle cx="${cx}" cy="${cy}" r="${r-0.5}" fill="#fff" stroke="#444" stroke-width="1"/>`;
@@ -1421,9 +1428,9 @@ function buildTemplateSVG(){
       const cellX = marginX + 5 + c*tfCellW;
       const cellY = tfStartY + r*tfRowH;
       svg+=`<text x="${cellX}" y="${cellY+bubbleR*0.6}" font-size="${M.qFont}" font-weight="bold">${i+1}.</text>`;
-      const tx=cellX+22, ty=cellY+bubbleR*0.35;
+      const tx=cellX+M.optStartX, ty=cellY+bubbleR*0.35;
       svg=drawMark(svg, tx, ty, bubbleR, 'T', M.optFont);
-      const fx=cellX+22+M.tfOptGap, fy=ty;
+      const fx=cellX+M.optStartX+M.tfOptGap, fy=ty;
       svg=drawMark(svg, fx, fy, bubbleR, 'F', M.optFont);
     }
     curY = tfStartY + Math.ceil(nTF/tfPerRow)*tfRowH + 6;
@@ -1443,7 +1450,7 @@ function buildTemplateSVG(){
       const cellY = chStartY + r*chRowH;
       svg+=`<text x="${cellX}" y="${cellY+bubbleR*0.6}" font-size="${M.qFont}" font-weight="bold">${nTF+i+1}.</text>`;
       'ABCD'.split('').forEach((opt,k)=>{
-        const cx=cellX+22+k*M.chOptGap, cy=cellY+bubbleR*0.35;
+        const cx=cellX+M.optStartX+k*M.chOptGap, cy=cellY+bubbleR*0.35;
         svg=drawMark(svg, cx, cy, bubbleR, opt, M.optFont);
       });
     }
@@ -1769,8 +1776,8 @@ function computeBubblePositions(source='template'){
     const cellX = marginX + 5 + c*tfCellW;
     const cellY = tfStartY + r*tfRowH;
     tf.push({
-      T:{cx:cellX+22, cy:cellY+bubbleR*0.35},
-      F:{cx:cellX+22+M.tfOptGap, cy:cellY+bubbleR*0.35},
+      T:{cx:cellX+M.optStartX, cy:cellY+bubbleR*0.35},
+      F:{cx:cellX+M.optStartX+M.tfOptGap, cy:cellY+bubbleR*0.35},
     });
   }
   const tfBottom = nTF>0 ? tfStartY + Math.ceil(nTF/tfPerRow)*tfRowH + 6 : sidBottom + 16;
@@ -1787,7 +1794,7 @@ function computeBubblePositions(source='template'){
     const cellY = chStartY + r*chRowH;
     const opts={};
     'ABCD'.split('').forEach((opt,k)=>{
-      opts[opt]={cx:cellX+22+k*M.chOptGap, cy:cellY+bubbleR*0.35};
+      opts[opt]={cx:cellX+M.optStartX+k*M.chOptGap, cy:cellY+bubbleR*0.35};
     });
     ch.push(opts);
   }
