@@ -1,3 +1,5 @@
 .playwright-mcp/
 git_store/
 rect_card_*
+v*-desktop.png
+v*-simplified-template.png
