@@ -13,11 +13,11 @@
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;700;900&family=Noto+Sans+SC:wght@400;500;700&display=swap');
   :root{
-    --ink:#30353a; --paper:#f7f4ee; --paper-deep:#ece7dd;
-    --card:#fffdf8; --red:#d95f3d; --green:#2f8b66;
-    --gold:#b58632; --blue:#2f7f8f; --line:#ded7ca; --mute:#877f73;
-    --shadow:0 5px 18px rgba(73,64,50,.08);
-    --header:#fffdf8; --teal:#2f8174;
+    --ink:#20272f; --paper:#f6f7f3; --paper-deep:#e9ede6;
+    --card:#ffffff; --red:#dc5a42; --green:#2f9e73;
+    --gold:#b7791f; --blue:#2a7d8e; --line:#dfe4dc; --mute:#6f766f;
+    --shadow:0 6px 20px rgba(31,41,51,.06);
+    --header:#ffffff; --teal:#1f8a7a;
   }
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
   body{
@@ -35,14 +35,14 @@
   }
   .version-badge{
     font-family:'Noto Sans SC',sans-serif;font-size:11px;font-weight:800;
-    color:var(--teal);border:1px solid rgba(47,129,116,.32);
-    border-radius:999px;padding:1px 8px;line-height:1.6;background:rgba(47,129,116,.08);
+    color:var(--teal);border:1px solid rgba(31,138,122,.32);
+    border-radius:999px;padding:1px 8px;line-height:1.6;background:rgba(31,138,122,.08);
   }
   header .seal{
-    width:26px;height:26px;border:2px solid var(--red);color:var(--red);
+    width:26px;height:26px;border:2px solid var(--teal);color:var(--teal);
     border-radius:5px;display:flex;align-items:center;justify-content:center;
     font-family:'Noto Serif SC',serif;font-weight:900;font-size:13px;
-    background:rgba(200,69,58,.12);transform:rotate(-6deg);
+    background:rgba(31,138,122,.08);transform:rotate(-6deg);
   }
   .header-status{font-size:12px;color:var(--mute);font-weight:700;white-space:nowrap;}
   main{max-width:1120px;margin:0 auto;padding:16px;}
@@ -64,7 +64,7 @@
   label{font-size:12.5px;font-weight:600;display:block;margin-bottom:5px;color:var(--ink);}
   input[type=text],input[type=number],textarea{
     width:100%;padding:10px 12px;border:1.5px solid var(--line);border-radius:8px;
-    font-size:15px;font-family:inherit;background:#fffefb;color:var(--ink);
+    font-size:15px;font-family:inherit;background:#fff;color:var(--ink);
   }
   textarea{line-height:1.5;resize:vertical;}
   input:focus,textarea:focus{outline:none;border-color:var(--blue);}
@@ -76,7 +76,7 @@
   button:active{transform:scale(.97);}
   .btn-primary{
     background:var(--teal);color:#fff;padding:12px;font-size:14px;width:100%;
-    box-shadow:0 3px 10px rgba(47,129,116,.18);
+    box-shadow:0 3px 10px rgba(31,138,122,.18);
   }
   .btn-ghost{
     background:transparent;color:var(--blue);border:1.5px solid var(--blue);
@@ -97,14 +97,14 @@
     padding:5px 4px 6px;width:calc(20% - 5px);text-align:center;
   }
   .qcell .qn{font-size:10px;color:var(--mute);font-weight:700;margin-bottom:4px;}
-  .qcell.tf{background:rgba(63,125,82,.06);}
+  .qcell.tf{background:rgba(47,158,115,.06);}
   .opts{display:flex;flex-wrap:wrap;gap:2px;justify-content:center;}
   .opt{
     width:20px;height:20px;border-radius:50%;font-size:10px;font-weight:700;
     border:1.2px solid var(--line);background:#fff;color:var(--mute);
     display:flex;align-items:center;justify-content:center;cursor:pointer;
   }
-  .opt.on{background:var(--header);color:#fff;border-color:var(--header);}
+  .opt.on{background:var(--teal);color:#fff;border-color:var(--teal);}
   .qcell.tf .opt.on{background:var(--green);border-color:var(--green);}
 
   /* 文件上传 */
@@ -117,7 +117,7 @@
   .drop .dt{font-weight:700;font-size:14px;}
   .drop .ds{font-size:11.5px;color:var(--mute);margin-top:4px;}
   .scan-panel{
-    border:1px solid rgba(47,127,143,.35);background:rgba(47,127,143,.06);
+    border:1px solid rgba(42,125,142,.28);background:rgba(42,125,142,.06);
     border-radius:8px;padding:12px;margin-bottom:12px;
   }
   .scan-actions{display:grid;grid-template-columns:1fr;gap:8px;}
@@ -133,9 +133,9 @@
     border:1px solid var(--line);background:var(--paper);border-radius:9px;
     padding:9px 10px;margin-top:10px;font-size:12px;line-height:1.55;color:var(--ink);
   }
-  .setup-check.ok{border-color:rgba(63,125,82,.35);background:rgba(63,125,82,.08);}
-  .setup-check.warn{border-color:rgba(184,146,63,.42);background:rgba(184,146,63,.12);}
-  .setup-check.bad{border-color:rgba(200,69,58,.42);background:rgba(200,69,58,.10);}
+  .setup-check.ok{border-color:rgba(47,158,115,.32);background:rgba(47,158,115,.08);}
+  .setup-check.warn{border-color:rgba(183,121,31,.34);background:rgba(183,121,31,.10);}
+  .setup-check.bad{border-color:rgba(220,90,66,.34);background:rgba(220,90,66,.09);}
   .setup-check b{font-weight:800;}
   .loading{
     display:inline-block;width:13px;height:13px;border:2px solid var(--line);
@@ -147,35 +147,35 @@
   /* 学生结果 */
   .stu-item{
     display:flex;align-items:center;gap:9px;padding:10px 12px;
-    border:1px solid var(--line);border-radius:9px;margin-bottom:7px;background:#fffefb;
+    border:1px solid var(--line);border-radius:9px;margin-bottom:7px;background:#fff;
   }
   .stu-item .nm{font-weight:700;font-size:13.5px;flex:1;}
   .stu-item .sub{font-size:11px;color:var(--mute);}
   .stu-item .sc{font-family:'Noto Serif SC',serif;font-weight:900;font-size:17px;}
   .badge{font-size:10.5px;padding:2px 7px;border-radius:18px;font-weight:700;}
-  .badge.done{background:rgba(63,125,82,.15);color:var(--green);}
-  .badge.todo{background:rgba(200,69,58,.13);color:var(--red);}
-  .badge.warn{background:rgba(184,146,63,.2);color:var(--gold);}
+  .badge.done{background:rgba(47,158,115,.14);color:var(--green);}
+  .badge.todo{background:var(--paper-deep);color:var(--mute);}
+  .badge.warn{background:rgba(183,121,31,.16);color:var(--gold);}
 
   .ansdot{
     display:inline-flex;align-items:center;justify-content:center;
     width:24px;height:24px;border-radius:5px;font-size:11px;font-weight:700;
     margin:2px;border:1px solid var(--line);
   }
-  .ansdot.ok{background:rgba(63,125,82,.16);color:var(--green);border-color:transparent;}
-  .ansdot.no{background:rgba(200,69,58,.16);color:var(--red);border-color:transparent;}
+  .ansdot.ok{background:rgba(47,158,115,.14);color:var(--green);border-color:transparent;}
+  .ansdot.no{background:rgba(220,90,66,.14);color:var(--red);border-color:transparent;}
   .ansdot.blank{background:var(--paper-deep);color:var(--mute);}
-  .ansdot.bad{background:rgba(184,146,63,.25);color:var(--gold);border-color:transparent;font-weight:900;}
+  .ansdot.bad{background:rgba(183,121,31,.18);color:var(--gold);border-color:transparent;font-weight:900;}
   .detail-box{margin-top:6px;padding-top:9px;border-top:1px dashed var(--line);}
 
   /* 统计 */
   .score-hero{
     text-align:center;padding:22px 16px;
-    background:linear-gradient(160deg,var(--teal),#4f7b73);
+    background:linear-gradient(160deg,var(--teal),#2a7d8e);
     color:var(--paper);border-radius:14px;margin-bottom:11px;
   }
   .score-hero .big{font-family:'Noto Serif SC',serif;font-size:50px;font-weight:900;line-height:1;}
-  .score-hero .of{font-size:13px;color:#b9b09a;}
+  .score-hero .of{font-size:13px;color:rgba(255,255,255,.72);}
   .score-hero .lbl{font-size:12px;margin-top:5px;}
   .stat-row{display:flex;gap:8px;margin-bottom:11px;}
   .stat-box{
@@ -192,7 +192,7 @@
   .fill{height:100%;border-radius:6px;}
   .qbar .meta{font-size:10.5px;color:var(--mute);margin-top:3px;}
   .wrong-pill{
-    display:inline-block;background:rgba(200,69,58,.12);color:var(--red);
+    display:inline-block;background:rgba(220,90,66,.12);color:var(--red);
     font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px;margin-left:4px;
   }
   .empty{text-align:center;color:var(--mute);font-size:12.5px;padding:24px 10px;line-height:1.7;}
@@ -202,7 +202,7 @@
     display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px;
   }
   .flow button{
-    background:rgba(255,253,248,.72);border:1px solid var(--line);border-radius:8px;
+    background:rgba(255,255,255,.82);border:1px solid var(--line);border-radius:8px;
     padding:10px 10px;text-align:left;color:var(--mute);display:flex;align-items:center;gap:8px;
   }
   .flow button .step-no{
@@ -211,7 +211,7 @@
   }
   .flow button .step-title{font-size:13px;font-weight:900;color:var(--ink);}
   .flow button .step-sub{font-size:10.5px;margin-top:1px;color:var(--mute);font-weight:600;}
-  .flow button.on{border-color:rgba(47,129,116,.55);background:rgba(47,129,116,.08);}
+  .flow button.on{border-color:rgba(31,138,122,.46);background:rgba(31,138,122,.08);}
   .flow button.on .step-no{background:var(--teal);color:#fff;border-color:var(--teal);}
   .talk-grid{display:grid;grid-template-columns:1fr;gap:12px;}
   @media (min-width:900px){
@@ -651,7 +651,7 @@ function validateOMRReady(){
   if(!status.ok){
     const fs=document.getElementById('fileStatus');
     if(fs){
-      fs.innerHTML=`<div class="filechip" style="background:rgba(200,69,58,.08);color:var(--red)">
+      fs.innerHTML=`<div class="filechip" style="background:rgba(220,90,66,.08);color:var(--red)">
         <span class="fx" style="background:var(--red)">!</span>
         <span style="flex:1">${status.text}</span></div>`;
     }
@@ -777,7 +777,7 @@ async function handleFile(file){
     renderGradeResult();
     document.getElementById('gradeResultBox').scrollIntoView({behavior:'smooth'});
   }catch(err){
-    status.innerHTML=`<div class="filechip" style="background:rgba(200,69,58,.08);color:var(--red)">
+    status.innerHTML=`<div class="filechip" style="background:rgba(220,90,66,.08);color:var(--red)">
       <span class="fx" style="background:var(--red)">!</span>
       <span style="flex:1">${err.message||err}</span></div>`;
   }
@@ -2120,7 +2120,7 @@ function sampleBubbleMark(imgData, w, h, cx, cy, spec, searchRadius){
 }
 
 function drawDebugMark(ctx, b, spec, filled){
-  ctx.strokeStyle = filled ? '#22c55e' : 'rgba(200,69,58,0.42)';
+  ctx.strokeStyle = filled ? '#22c55e' : 'rgba(220,90,66,0.42)';
   ctx.beginPath();
   if(spec.shape==='rect'){
     ctx.rect(b.sx-spec.drawW/2, b.sy-spec.drawH/2, spec.drawW, spec.drawH);
@@ -2442,7 +2442,7 @@ async function handleOMRFiles(files){
   DB.students = Object.values(byKey);
   save();
 
-  let html=`<div class="filechip" style="background:rgba(63,125,82,.1);">
+  let html=`<div class="filechip" style="background:rgba(47,158,115,.1);">
     <span class="fx" style="background:var(--green)">✓</span>
     <span style="flex:1">成功识别 ${okCount} 张</span>`;
   if(failCount) html+=`<span style="color:var(--red);font-weight:700">失败 ${failCount}</span>`;
