@@ -344,7 +344,7 @@
   <div class="flow" aria-label="批改流程">
     <button class="on" data-v="tpl" onclick="go('tpl',this)">
       <span class="step-no">1</span>
-      <span><span class="step-title">模板</span><span class="step-sub">生成答题卡</span></span>
+      <span><span class="step-title">模板</span><span class="step-sub">设置题量与样式</span></span>
     </button>
     <button data-v="key" onclick="go('key',this)">
       <span class="step-no">2</span>
@@ -352,11 +352,11 @@
     </button>
     <button data-v="grade" onclick="go('grade',this)">
       <span class="step-no">3</span>
-      <span><span class="step-title">批改</span><span class="step-sub">上传图片/文件</span></span>
+      <span><span class="step-title">批改</span><span class="step-sub">上传名册与答题卡</span></span>
     </button>
     <button data-v="stats" onclick="go('stats',this)">
       <span class="step-no">4</span>
-      <span><span class="step-title">讲评</span><span class="step-sub">成绩与错题</span></span>
+      <span><span class="step-title">讲评</span><span class="step-sub">查看成绩与错题</span></span>
     </button>
   </div>
 
@@ -499,6 +499,7 @@
 
   <!-- ============ 视图4：统计 ============ -->
   <section class="view" id="view-stats">
+    <div class="setup-check" data-setup-check></div>
     <div id="statsBody"></div>
   </section>
 
@@ -611,36 +612,98 @@ function normalizeTemplateCountValue(v, fallback, max){
   if(v===null || v===undefined) return fallback;
   return normalizeCount(v, 0, max);
 }
-function getSetupStatus(){
+function getSetupStatus(scope='global'){
   const counts=getQCounts();
   const total=counts.nTF+counts.nCh;
   const hasKey=!!DB.saved;
   const keyTF=DB.keyTF.length;
   const keyCh=DB.keyChoice.length;
   const mismatch=hasKey && (counts.nTF!==keyTF || counts.nCh!==keyCh);
+
+  if(scope==='tpl'){
+    if(total<=0){
+      return {type:'bad', ok:false, label:'模板进度：', text:'请先设置判断题或选择题数量，至少保留一类题目。'};
+    }
+    if(mismatch){
+      return {type:'bad', ok:false, label:'模板进度：', text:`题量已调整为判断 ${counts.nTF} 题、选择 ${counts.nCh} 题，但标准答案数量还没同步。请进入「答案」页补齐或修改标准答案。`};
+    }
+    if(!hasKey){
+      return {type:'warn', ok:false, label:'模板进度：', text:`已设置判断 ${counts.nTF} 题、选择 ${counts.nCh} 题。请下载或打印答题卡；准备批改前，进入「答案」页录入标准答案。`};
+    }
+    return {type:'ok', ok:true, label:'模板进度：', text:`已设置判断 ${counts.nTF} 题、选择 ${counts.nCh} 题。模板和标准答案已匹配，可以下载或打印答题卡。`};
+  }
+
+  if(scope==='key'){
+    if(total<=0){
+      return {type:'bad', ok:false, label:'答案进度：', text:'请先进入「模板」页设置题目数量，再录入标准答案。'};
+    }
+    if(!hasKey){
+      return {type:'warn', ok:false, label:'答案进度：', text:'请按题目顺序录入标准答案，保存后再进入「批改」页。'};
+    }
+    if(mismatch){
+      return {type:'bad', ok:false, label:'答案进度：', text:'标准答案数量和模板题量不一致，请按题目顺序核对后再进入批改。'};
+    }
+    return {type:'ok', ok:true, label:'答案进度：', text:'已录入标准答案。下一步请进入「批改」页，上传名册和学生答题卡。'};
+  }
+
+  if(scope==='grade'){
+    if(total<=0){
+      return {type:'bad', ok:false, label:'批改进度：', text:'请先进入「模板」页设置题目数量。'};
+    }
+    if(!hasKey){
+      return {type:'bad', ok:false, label:'批改进度：', text:'请先进入「答案」页录入标准答案，再上传学生答题卡。'};
+    }
+    if(mismatch){
+      return {type:'bad', ok:false, label:'批改进度：', text:'题目数量和标准答案数量不一致，请先回到「答案」页核对。'};
+    }
+    if(DB.students.length){
+      return {type:'ok', ok:true, label:'批改进度：', text:'已完成批改。下一步请进入「讲评」页查看成绩统计和错题清单。'};
+    }
+    if(DB.roster.length){
+      return {type:'ok', ok:true, label:'批改进度：', text:'标准答案和名册已准备好，请上传学生答题卡开始批改。'};
+    }
+    return {type:'warn', ok:true, label:'批改进度：', text:'请先上传学生名册，再上传学生答题卡图片或 PDF。批改完成后，进入「讲评」页查看成绩和高频错题。'};
+  }
+
+  if(scope==='stats'){
+    if(DB.students.length){
+      return {type:'ok', ok:true, label:'讲评进度：', text:'这里汇总学生成绩、正确率和高频错题，可用于课堂讲评或导出成绩表。'};
+    }
+    return {type:'warn', ok:false, label:'讲评进度：', text:'还没有批改结果。请先进入「批改」页上传学生答题卡。'};
+  }
+
   if(total<=0){
-    return {type:'bad', ok:false, text:'请先在「模板」页填写题目数量。判断题或选择题至少有一类不能为 0。'};
+    return {type:'bad', ok:false, label:'批改检查：', text:'请先在「模板」页填写题目数量。判断题或选择题至少有一类不能为 0。'};
   }
   if(!hasKey){
-    return {type:'warn', ok:false, text:`模板已准备好：判断 ${counts.nTF} 题、选择 ${counts.nCh} 题。下一步请到「标准答案」页录入答案。`};
+    return {type:'warn', ok:false, label:'批改检查：', text:`模板已准备好：判断 ${counts.nTF} 题、选择 ${counts.nCh} 题。下一步请到「答案」页录入答案。`};
   }
   if(mismatch){
-    return {type:'bad', ok:false, text:`题目数量和标准答案数量对不上：模板是判断 ${counts.nTF} 题、选择 ${counts.nCh} 题；答案是判断 ${keyTF} 题、选择 ${keyCh} 题。请先改成一致，再上传学生答题卡。`};
+    return {type:'bad', ok:false, label:'批改检查：', text:`题目数量和标准答案数量对不上：模板是判断 ${counts.nTF} 题、选择 ${counts.nCh} 题；答案是判断 ${keyTF} 题、选择 ${keyCh} 题。请先改成一致，再上传学生答题卡。`};
   }
   if(!DB.roster.length){
-    return {type:'warn', ok:true, text:`可以开始批改：共 ${counts.nTF+counts.nCh} 题。未导入名册时，结果会先按学号显示。`};
+    return {type:'warn', ok:true, label:'批改检查：', text:`可以开始批改：共 ${counts.nTF+counts.nCh} 题。未导入名册时，结果会先按学号显示。`};
   }
-  return {type:'ok', ok:true, text:`可以开始批改：共 ${counts.nTF+counts.nCh} 题，已导入 ${DB.roster.length} 名学生。请拍照或上传裁开后的答题卡图片 / PDF。`};
+  return {type:'ok', ok:true, label:'批改检查：', text:`可以开始批改：共 ${counts.nTF+counts.nCh} 题，已导入 ${DB.roster.length} 名学生。请拍照或上传裁开后的答题卡图片 / PDF。`};
+}
+function setupCheckScope(el){
+  const view=el.closest('.view');
+  if(!view) return 'global';
+  if(view.id==='view-tpl') return 'tpl';
+  if(view.id==='view-key') return 'key';
+  if(view.id==='view-grade') return 'grade';
+  if(view.id==='view-stats') return 'stats';
+  return 'global';
 }
 function renderSetupCheck(){
-  const status=getSetupStatus();
   document.querySelectorAll('[data-setup-check]').forEach(el=>{
+    const status=getSetupStatus(setupCheckScope(el));
     el.className=`setup-check ${status.type}`;
-    el.innerHTML=`<b>批改检查：</b>${status.text}`;
+    el.innerHTML=`<b>${status.label}</b>${status.text}`;
   });
 }
 function validateOMRReady(){
-  const status=getSetupStatus();
+  const status=getSetupStatus('grade');
   if(!status.ok){
     const fs=document.getElementById('fileStatus');
     if(fs){
