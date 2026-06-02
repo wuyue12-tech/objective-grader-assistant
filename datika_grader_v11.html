@@ -116,17 +116,6 @@
   .drop .di{font-size:28px;display:block;margin-bottom:6px;}
   .drop .dt{font-weight:700;font-size:14px;}
   .drop .ds{font-size:11.5px;color:var(--mute);margin-top:4px;}
-  .scan-panel{
-    border:1px solid var(--line);background:rgba(255,255,255,.72);
-    border-radius:8px;padding:12px;margin-bottom:12px;
-  }
-  .scan-actions{display:grid;grid-template-columns:1fr;gap:8px;}
-  .upload-main-btn{
-    width:100%;min-height:48px;padding:12px 14px;border:1px solid rgba(31,138,122,.28);
-    background:#fff;color:var(--ink);box-shadow:0 4px 14px rgba(31,41,51,.05);
-    display:flex;align-items:center;justify-content:center;gap:8px;font-size:14px;
-  }
-  .upload-main-btn::before{content:'+';color:var(--teal);font-size:18px;line-height:1;font-weight:900;}
   .filechip{
     display:flex;align-items:center;gap:8px;background:var(--paper-deep);
     border-radius:8px;padding:8px 10px;margin-top:10px;font-size:12.5px;
@@ -411,14 +400,6 @@
     <div class="card">
       <h2><span class="num">3</span>上传批改</h2>
       <div id="modeOMR">
-        <div class="scan-panel">
-          <div class="scan-actions">
-            <button class="upload-main-btn" onclick="document.getElementById('omrInput').click()">上传图片/文件</button>
-          </div>
-        </div>
-        <button class="btn-ghost" onclick="go('tpl')">查看 / 下载填涂卡模板</button>
-        <div style="height:10px;"></div>
-
         <label>学号-姓名名册</label>
         <div class="seg" style="margin-bottom:8px;">
           <button class="on" id="rosterTabXlsx" onclick="setRosterTab('xlsx')">上传 Excel</button>
