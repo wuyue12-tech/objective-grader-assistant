@@ -2804,16 +2804,21 @@ async function recognizeOMR(file){
   const M=getTemplateMetrics('template', activeShape);
   const sampleSpec=getSampleSpec(positions.bubbleR, pxPerPt, activeShape);
   const maxSearchPt = Math.min(M.chOptGap, M.tfOptGap) * 0.44;
-  const searchR = activeShape==='rect'
-    ? Math.max(2, Math.min(10, sampleSpec.drawH*0.48))
-    : Math.max(3, Math.min(positions.bubbleR * 0.95, maxSearchPt) * pxPerPt);
+  const circleSearchR = Math.max(3, Math.min(positions.bubbleR * 0.95, maxSearchPt) * pxPerPt);
+  const sidSearchR = activeShape==='rect'
+    ? Math.max(2, Math.min(8, sampleSpec.drawH*0.55))
+    : circleSearchR;
+  const answerSearchR = activeShape==='rect'
+    ? Math.max(2, Math.min(10, sampleSpec.drawH*0.7))
+    : circleSearchR;
 
   // 收集所有填涂框灰度
   const allBubbles=[];
   function add(pos, tag){
     const p=applyH(H_mat, pos.cx, pos.cy);
-    const mark=sampleBubbleMark(imgData, cw, ch, p.x, p.y, sampleSpec, searchR);
-    allBubbles.push({...pos, tag, gray:mark.gray, score:mark.score, rawScore:mark.rawScore, darkRatio:mark.darkRatio, sx:mark.sx, sy:mark.sy, baseX:p.x, baseY:p.y, dist:mark.dist});
+    const localSearchR = tag.startsWith('sid') ? sidSearchR : answerSearchR;
+    const mark=sampleBubbleMark(imgData, cw, ch, p.x, p.y, sampleSpec, localSearchR);
+    allBubbles.push({...pos, tag, gray:mark.gray, score:mark.score, rawScore:mark.rawScore, darkRatio:mark.darkRatio, sx:mark.sx, sy:mark.sy, baseX:p.x, baseY:p.y, dist:mark.dist, searchR:localSearchR});
     return mark.gray;
   }
   // 学号
@@ -2851,9 +2856,9 @@ async function recognizeOMR(file){
     if(!first) return false;
     const gap = second ? first.score-second.score : first.score;
     if(activeShape==='rect'){
-      return first.darkRatio>=0.22 &&
-        first.score>=medianScore-4 &&
-        gap>Math.max(16, first.score*0.22);
+      return first.darkRatio>=0.11 &&
+        first.score>=medianScore-30 &&
+        gap>Math.max(5, first.score*0.05);
     }
     return first.score>=medianScore+18 && first.gray<median*0.94 && gap>Math.max(18, first.score*0.16);
   }
@@ -2861,8 +2866,8 @@ async function recognizeOMR(file){
     const ranked=[...candidates].sort((a,b)=>b.score-a.score);
     const first=ranked[0], second=ranked[1];
     if(!first || (!isFilledBubble(first) && !isProminentSingle(first, second))) return '';
-    const secondNearCenter = second && second.dist <= searchR*0.55;
-    if(second && secondNearCenter && isFilledBubble(second) && first.score-second.score<Math.max(18, first.score*0.12)) return '?';
+    const secondNearCenter = second && second.dist <= (first.searchR || answerSearchR)*0.55;
+    if(second && secondNearCenter && isFilledBubble(second) && first.score-second.score<Math.max(12, first.score*0.06)) return '?';
     return first.value;
   }
 
@@ -2872,18 +2877,16 @@ async function recognizeOMR(file){
   let sid='';
   let sidWarn=false;
   for(let c=0;c<positions.sid.length;c++){
-    let pick=-1, bestScore=-1, secondScore=-1;
+    const candidates=[];
     for(let d=0;d<positions.sid[c].length;d++){
       const b=allBubbles.find(b=>b.tag===`sid${c}${d}`);
-      if(b.score>bestScore){ secondScore=bestScore; bestScore=b.score; pick=d; }
-      else if(b.score>secondScore){ secondScore=b.score; }
+      candidates.push({...b, value:String(d)});
     }
-    const first=allBubbles.find(b=>b.tag===`sid${c}${pick}`);
-    const second={score:secondScore, gray:255};
-    if(first && (isFilledBubble(first) || isProminentSingle(first, second)) && (bestScore-secondScore>Math.max(18, bestScore*0.12) || !isFilledBubble(second))){
-      sid+=pick;
-      recognizedTags.add(`sid${c}${pick}`);
-    }else if(first && isFilledBubble(first) && isFilledBubble(second)){
+    const picked=pickSingle(candidates);
+    if(picked && picked!=='?'){
+      sid+=picked;
+      recognizedTags.add(`sid${c}${picked}`);
+    }else if(picked==='?'){
       sid+='?'; sidWarn=true; // 多涂
     }else{
       sid+='_'; sidWarn=true; // 未涂
