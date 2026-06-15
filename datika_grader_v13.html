@@ -619,10 +619,11 @@ function ensureClassGroups(){
   if(DB.statsClassId!=='all' && !DB.classes.some(c=>c.id===DB.statsClassId)){
     DB.statsClassId='all';
   }
-  DB.students=(DB.students||[]).map(s=>({
-    ...s,
-    classId:s.classId || first
-  }));
+  DB.students=(DB.students||[]).map((s,idx)=>{
+    if(!s.id) s.id='stu_'+Date.now().toString(36)+'_'+idx;
+    if(!s.classId) s.classId=first;
+    return s;
+  });
 }
 function getClassById(classId){
   ensureClassGroups();
@@ -1187,9 +1188,12 @@ function renderGradeResult(){
     html+=`<p class="mini" style="color:var(--gold);font-weight:700;">⚠ ${warnCount} 名学生识别有异常，已标黄，请点开核对。</p>`;
   }
   const ordered=[];
-  DB.classes.forEach(c=>getStudentsByClass(c.id).forEach(s=>ordered.push(s)));
-  ordered.forEach((s,idx)=>{
-    const dbIdx=DB.students.indexOf(s);
+  DB.classes.forEach(c=>{
+    (DB.students||[]).forEach((s,dbIdx)=>{
+      if((s.classId||DB.classes[0].id)===c.id) ordered.push({s,dbIdx});
+    });
+  });
+  ordered.forEach(({s,dbIdx})=>{
     const warn=!!s.parseWarn;
     html+=`<div class="stu-item" onclick="toggleDetail(${dbIdx})" style="cursor:pointer;">
       <span class="nm">${htmlEscape(s.name)}${s.manualEdited?'<span class="manual-tag">已修正</span>':''}<div class="sub">${htmlEscape(getClassName(s.classId))} · ${s.sid?`学号 ${htmlEscape(s.sid)} · `:''}${s.tfCorrect}/${DB.keyTF.length}判 · ${s.choiceCorrect}/${DB.keyChoice.length}选</div></span>
