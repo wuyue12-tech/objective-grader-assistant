@@ -132,6 +132,37 @@
   .setup-check.warn{border-color:rgba(183,121,31,.34);background:rgba(183,121,31,.10);}
   .setup-check.bad{border-color:rgba(220,90,66,.34);background:rgba(220,90,66,.09);}
   .setup-check b{font-weight:800;}
+  .class-upload-list{display:grid;gap:10px;margin-top:8px;}
+  .class-upload-card{
+    border:1px solid var(--line);border-radius:10px;background:#fff;padding:10px;
+  }
+  .class-upload-head{
+    display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;margin-bottom:8px;
+  }
+  .class-upload-head input{font-size:13px;font-weight:700;padding:8px 10px;}
+  .class-upload-actions{display:flex;gap:6px;align-items:center;}
+  .class-upload-actions .btn-sm{white-space:nowrap;padding:7px 10px;}
+  .class-upload-card .drop{padding:14px 10px;background:#fbfcfa;}
+  .class-upload-card .drop .di{font-size:22px;}
+  .class-upload-card .drop .dt{font-size:13px;}
+  .class-upload-card .class-count{font-size:11px;color:var(--mute);margin-top:6px;}
+  .class-add-row{display:grid;grid-template-columns:1fr;gap:8px;margin-top:10px;}
+  .class-tabs{display:flex;flex-wrap:wrap;gap:7px;margin:0 0 12px;}
+  .class-tab{
+    background:#fff;border:1px solid var(--line);color:var(--mute);
+    padding:7px 11px;border-radius:999px;font-size:12px;font-weight:800;
+  }
+  .class-tab.on{background:var(--teal);border-color:var(--teal);color:#fff;}
+  .class-summary-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:12px;}
+  .class-summary-card{
+    border:1px solid var(--line);border-radius:10px;background:#fff;padding:10px;
+  }
+  .class-summary-card .name{font-weight:900;font-size:13px;margin-bottom:4px;}
+  .class-summary-card .meta{font-size:11px;color:var(--mute);line-height:1.5;}
+  @media (min-width:760px){
+    .class-add-row{grid-template-columns:1fr 180px;}
+    .class-summary-grid{grid-template-columns:repeat(4,minmax(0,1fr));}
+  }
   .loading{
     display:inline-block;width:13px;height:13px;border:2px solid var(--line);
     border-top-color:var(--blue);border-radius:50%;animation:spin .7s linear infinite;
@@ -335,7 +366,7 @@
 
 <header>
   <div class="topbar">
-    <div class="brand"><span class="seal">批</span>客观题批改助手 <span class="version-badge">V11</span></div>
+    <div class="brand"><span class="seal">批</span>客观题批改助手 <span class="version-badge">V12</span></div>
     <div class="header-status">本地批改 · 数据保存在当前浏览器</div>
   </div>
 </header>
@@ -426,13 +457,9 @@
         <div style="height:10px;"></div>
         <div class="setup-check" data-setup-check></div>
         <div style="height:10px;"></div>
-        <label>上传学生答题卡（图片或 PDF）</label>
-        <div class="drop" onclick="document.getElementById('omrInput').click()">
-          <span class="di">📷</span>
-          <div class="dt">点这里上传图片/文件</div>
-          <div class="ds">支持 .jpg / .png / .pdf（PDF 每页视为一份答题卡）</div>
-        </div>
-        <input type="file" id="omrInput" accept="image/*,.pdf,application/pdf" multiple style="display:none" onchange="handleOMRFiles(this.files)">
+        <label>按班级上传学生答题卡</label>
+        <div class="mini">每个班级单独上传图片或 PDF。PDF 每页会作为一份答题卡批改。</div>
+        <div id="classUploadBox"></div>
       </div>
 
       <div id="fileStatus"></div>
@@ -525,7 +552,7 @@ if(window.pdfjsLib){
 }
 
 /* ==================== 数据存储 ==================== */
-const DB_KEY='grader_v11';
+const DB_KEY='grader_v12';
 let DB={
   scoreTF:1, scoreChoice:2,
   keyTF:'',     // 'TTFFTTFF'
@@ -536,15 +563,17 @@ let DB={
   tplTFCount:null,
   tplChoiceCount:null,
   markShape:'rect',
+  classes:[{id:'class_1', name:'班级1'}],
+  statsClassId:'all',
   roster:[],    // [{id:'001', name:'张三'}, ...]
-  students:[]   // {id, name, sid, tfAns, choiceAns, tfCorrect, choiceCorrect, score, totalScore, parseWarn, omrDebugImg?}
+  students:[]   // {id, classId, name, sid, tfAns, choiceAns, tfCorrect, choiceCorrect, score, totalScore, parseWarn, omrDebugImg?}
 };
 try{
   const d=JSON.parse(localStorage.getItem(DB_KEY));
   if(d) Object.assign(DB,d);
   else{
     // 尝试从老版本迁移
-    const old=JSON.parse(localStorage.getItem('grader_v10')) || JSON.parse(localStorage.getItem('grader_v9')) || JSON.parse(localStorage.getItem('grader_v8')) || JSON.parse(localStorage.getItem('grader_v7')) || JSON.parse(localStorage.getItem('grader_v4')) || JSON.parse(localStorage.getItem('grader_v3'));
+    const old=JSON.parse(localStorage.getItem('grader_v11')) || JSON.parse(localStorage.getItem('grader_v10')) || JSON.parse(localStorage.getItem('grader_v9')) || JSON.parse(localStorage.getItem('grader_v8')) || JSON.parse(localStorage.getItem('grader_v7')) || JSON.parse(localStorage.getItem('grader_v4')) || JSON.parse(localStorage.getItem('grader_v3'));
     if(old){
       Object.assign(DB, old);
       DB.mode='omr';
@@ -554,8 +583,43 @@ try{
   }
 }catch(e){}
 DB.markShape='rect';
+function createClassId(){
+  return 'class_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,7);
+}
+function ensureClassGroups(){
+  if(!Array.isArray(DB.classes) || !DB.classes.length){
+    DB.classes=[{id:'class_1', name:'班级1'}];
+  }
+  DB.classes=DB.classes.map((c,idx)=>({
+    id:c && c.id ? String(c.id) : `class_${idx+1}`,
+    name:c && c.name ? String(c.name) : `班级${idx+1}`
+  }));
+  const first=DB.classes[0].id;
+  if(DB.statsClassId!=='all' && !DB.classes.some(c=>c.id===DB.statsClassId)){
+    DB.statsClassId='all';
+  }
+  DB.students=(DB.students||[]).map(s=>({
+    ...s,
+    classId:s.classId || first
+  }));
+}
+function getClassById(classId){
+  ensureClassGroups();
+  return DB.classes.find(c=>c.id===classId) || DB.classes[0];
+}
+function getClassName(classId){
+  const c=getClassById(classId);
+  return c ? c.name : '班级1';
+}
+function getStudentsByClass(classId='all'){
+  ensureClassGroups();
+  if(classId==='all') return DB.students || [];
+  return (DB.students||[]).filter(s=>s.classId===classId);
+}
+ensureClassGroups();
 function save(){
   // 不保存 omrDebugImg（base64 太大），保留其他
+  ensureClassGroups();
   const slim={...DB, students:DB.students.map(s=>{const c={...s};delete c.omrDebugImg;return c;})};
   try{ localStorage.setItem(DB_KEY,JSON.stringify(slim)); }catch(e){}
 }
@@ -585,7 +649,7 @@ function go(v,btn){
   if(flowBtn) flowBtn.classList.add('on');
   if(v==='list') renderList();
   if(v==='stats') renderStats();
-  if(v==='grade') renderGradeResult();
+  if(v==='grade'){ renderClassUploads(); renderGradeResult(); }
   if(v==='tpl') renderTemplatePreview();
   renderSetupCheck();
   window.scrollTo(0,0);
@@ -985,8 +1049,15 @@ function regrade(s){
 function renderGradeResult(){
   const box=document.getElementById('gradeResultBox');
   if(!DB.students.length){ box.innerHTML=''; return; }
+  ensureClassGroups();
   const warnCount=DB.students.filter(s=>s.parseWarn).length;
   let html='<div class="card"><h2><span class="num">2</span>批改结果</h2>';
+  html+='<div class="class-tabs">';
+  DB.classes.forEach(c=>{
+    const count=getStudentsByClass(c.id).length;
+    html+=`<span class="class-tab">${htmlEscape(c.name)} · ${count}人</span>`;
+  });
+  html+='</div>';
   const tplCounts=getQCounts();
   if(tplCounts.nTF!==DB.keyTF.length || tplCounts.nCh!==DB.keyChoice.length){
     html+=`<p class="mini" style="color:var(--gold);font-weight:700;">注意：当前识别按模板题量“判断 ${tplCounts.nTF} 题、选择 ${tplCounts.nCh} 题”定位；标准答案为“判断 ${DB.keyTF.length} 题、选择 ${DB.keyChoice.length} 题”。如果定位标记偏移，请先到「模板」页核对题量。</p>`;
@@ -994,10 +1065,12 @@ function renderGradeResult(){
   if(warnCount){
     html+=`<p class="mini" style="color:var(--gold);font-weight:700;">⚠ ${warnCount} 名学生识别有异常，已标黄，请点开核对。</p>`;
   }
-  DB.students.forEach((s,idx)=>{
+  const ordered=[];
+  DB.classes.forEach(c=>getStudentsByClass(c.id).forEach(s=>ordered.push(s)));
+  ordered.forEach((s,idx)=>{
     const warn=!!s.parseWarn;
     html+=`<div class="stu-item" onclick="toggleDetail(${idx})" style="cursor:pointer;">
-      <span class="nm">${s.name}<div class="sub">${s.sid?`学号 ${s.sid} · `:''}${s.tfCorrect}/${DB.keyTF.length}判 · ${s.choiceCorrect}/${DB.keyChoice.length}选</div></span>
+      <span class="nm">${htmlEscape(s.name)}<div class="sub">${htmlEscape(getClassName(s.classId))} · ${s.sid?`学号 ${htmlEscape(s.sid)} · `:''}${s.tfCorrect}/${DB.keyTF.length}判 · ${s.choiceCorrect}/${DB.keyChoice.length}选</div></span>
       ${warn?`<span class="badge warn">⚠</span>`:''}
       <span class="sc" style="color:${s.score>=s.totalScore*0.6?'var(--green)':'var(--red)'}">${s.score}</span>
     </div>
@@ -1055,19 +1128,28 @@ function renderList(){
     box.innerHTML='<div class="card"><div class="empty"><span class="ico">☷</span>还没有成绩</div></div>';
     return;
   }
-  const ranked=[...DB.students].sort((a,b)=>b.score-a.score);
+  ensureClassGroups();
+  const active=DB.statsClassId || 'all';
+  const scoped=getStudentsByClass(active);
+  const ranked=[...scoped].sort((a,b)=>b.score-a.score);
   let html='<div class="card"><h2><span class="num">☷</span>成绩排名</h2>';
+  html+=renderClassTabs(active);
+  if(!ranked.length){
+    html+='<div class="empty">这个班级还没有批改记录。</div></div>';
+    box.innerHTML=html;
+    return;
+  }
   ranked.forEach((s,idx)=>{
     const c=s.score>=s.totalScore*0.85?'var(--green)':s.score>=s.totalScore*0.6?'var(--ink)':'var(--red)';
     html+=`<div class="stu-item">
       <span class="badge ${idx<3?'warn':'todo'}">${idx+1}</span>
-      <span class="nm">${s.name}</span>
+      <span class="nm">${htmlEscape(s.name)}<div class="sub">${htmlEscape(getClassName(s.classId))}${s.sid?` · 学号 ${htmlEscape(s.sid)}`:''}</div></span>
       <span class="sub">${s.tfCorrect+s.choiceCorrect}/${DB.keyTF.length+DB.keyChoice.length}</span>
       <span class="sc" style="color:${c}">${s.score}</span>
     </div>`;
   });
   html+='<div class="divider"></div>'+
-    '<button class="btn-ghost" onclick="exportCSV()">导出 Excel 表 (.csv)</button>'+
+    renderExportButtons(active)+
     '<div style="height:8px;"></div>'+
     '<button class="btn-sm btn-danger" style="width:100%" onclick="clearStudents()">清空批改记录</button>'+
     '</div>';
@@ -1091,8 +1173,8 @@ function questionNo(type,qIdx){
 function questionLabel(type,qIdx){
   return `第${questionNo(type,qIdx)}题`;
 }
-function buildQuestionStats(){
-  const ss=DB.students, n=ss.length, out=[];
+function buildQuestionStats(students){
+  const ss=students || DB.students, n=ss.length, out=[];
   function add(qIdx,type,key){
     let right=0; const wrong={}, names={};
     ss.forEach(s=>{
@@ -1123,6 +1205,44 @@ function buildQuestionStats(){
   return out;
 }
 
+function setStatsClass(classId){
+  ensureClassGroups();
+  DB.statsClassId=classId || 'all';
+  save();
+  renderStats();
+  renderList();
+}
+function renderClassTabs(activeId){
+  ensureClassGroups();
+  const allCount=(DB.students||[]).length;
+  let html='<div class="class-tabs">';
+  html+=`<button class="class-tab ${activeId==='all'?'on':''}" onclick="setStatsClass('all')">全部 · ${allCount}人</button>`;
+  DB.classes.forEach(c=>{
+    const count=getStudentsByClass(c.id).length;
+    html+=`<button class="class-tab ${activeId===c.id?'on':''}" onclick="setStatsClass('${c.id}')">${htmlEscape(c.name)} · ${count}人</button>`;
+  });
+  html+='</div>';
+  return html;
+}
+function calcScoreSummary(students){
+  const ss=students || [];
+  if(!ss.length) return null;
+  const totalScore=ss[0].totalScore;
+  const scores=ss.map(s=>s.score);
+  const avg=scores.reduce((a,b)=>a+b,0)/ss.length;
+  const mx=Math.max(...scores), mn=Math.min(...scores);
+  const passLine=totalScore*0.6;
+  const passRate=Math.round(ss.filter(s=>s.score>=passLine).length/ss.length*100);
+  return {n:ss.length,totalScore,avg,mx,mn,passRate};
+}
+function renderExportButtons(activeId){
+  let html='<button class="btn-ghost" onclick="exportCSV()">导出当前成绩表 (.csv)</button>';
+  if(activeId && activeId!=='all'){
+    html+='<div style="height:8px;"></div><button class="btn-ghost" onclick="exportCSV(\'all\')">导出全部班级成绩表 (.csv)</button>';
+  }
+  return html;
+}
+
 /* ==================== 视图4：统计 ==================== */
 function renderStats(){
   const box=document.getElementById('statsBody');
@@ -1130,19 +1250,38 @@ function renderStats(){
     box.innerHTML='<div class="card"><div class="empty"><span class="ico">▦</span>还没有讲评数据。完成批改后，这里会显示成绩单和高频错题。</div></div>';
     return;
   }
-  const ss=DB.students, n=ss.length;
-  const totalScore=ss[0].totalScore;
-  const scores=ss.map(s=>s.score);
-  const avg=scores.reduce((a,b)=>a+b,0)/n;
-  const mx=Math.max(...scores), mn=Math.min(...scores);
-  const passLine=totalScore*0.6;
-  const passRate=Math.round(ss.filter(s=>s.score>=passLine).length/n*100);
-  const qStats=buildQuestionStats();
+  ensureClassGroups();
+  const active=DB.statsClassId || 'all';
+  const ss=getStudentsByClass(active), n=ss.length;
+  let html=renderClassTabs(active);
+  if(active==='all' && DB.classes.length>1){
+    html+='<div class="class-summary-grid">';
+    DB.classes.forEach(c=>{
+      const summary=calcScoreSummary(getStudentsByClass(c.id));
+      html+=`<div class="class-summary-card">
+        <div class="name">${htmlEscape(c.name)}</div>
+        <div class="meta">${summary ? `人数 ${summary.n} · 均分 ${summary.avg.toFixed(1)}<br>最高 ${summary.mx} · 最低 ${summary.mn}` : '还没有批改记录'}</div>
+      </div>`;
+    });
+    html+='</div>';
+  }
+  if(!n){
+    html+='<div class="card"><div class="empty">这个班级还没有讲评数据。</div></div>';
+    box.innerHTML=html;
+    return;
+  }
+  const summary=calcScoreSummary(ss);
+  const totalScore=summary.totalScore;
+  const avg=summary.avg;
+  const mx=summary.mx, mn=summary.mn;
+  const passRate=summary.passRate;
+  const qStats=buildQuestionStats(ss);
+  const scopeLabel=active==='all' ? '全部平均分' : `${getClassName(active)}平均分`;
 
-  let html=`<div class="talk-grid"><div><div class="score-hero">
+  html+=`<div class="talk-grid"><div><div class="score-hero">
     <div class="big">${avg.toFixed(1)}</div>
     <div class="of">/ ${totalScore} 分</div>
-    <div class="lbl">班级平均分 · ${n} 人</div>
+    <div class="lbl">${htmlEscape(scopeLabel)} · ${n} 人</div>
   </div>
   <div class="stat-row">
     <div class="stat-box"><div class="v" style="color:var(--green)">${mx}</div><div class="k">最高分</div></div>
@@ -1196,18 +1335,18 @@ function renderStats(){
   });
   html+='</div></div>';
 
-  const ranked=[...DB.students].sort((a,b)=>b.score-a.score);
+  const ranked=[...ss].sort((a,b)=>b.score-a.score);
   html+='<div><div class="card"><h2><span class="num">☷</span>成绩单</h2>';
   ranked.forEach((s,idx)=>{
     const c=s.score>=s.totalScore*0.85?'var(--green)':s.score>=s.totalScore*0.6?'var(--ink)':'var(--red)';
     html+=`<div class="stu-item">
       <span class="badge ${idx<3?'warn':'todo'}">${idx+1}</span>
-      <span class="nm">${s.name}<div class="sub">${s.sid?`学号 ${s.sid} · `:''}${s.tfCorrect+s.choiceCorrect}/${DB.keyTF.length+DB.keyChoice.length}题</div></span>
+      <span class="nm">${htmlEscape(s.name)}<div class="sub">${htmlEscape(getClassName(s.classId))} · ${s.sid?`学号 ${htmlEscape(s.sid)} · `:''}${s.tfCorrect+s.choiceCorrect}/${DB.keyTF.length+DB.keyChoice.length}题</div></span>
       <span class="sc" style="color:${c}">${s.score}</span>
     </div>`;
   });
   html+='<div class="divider"></div>'+
-    '<button class="btn-ghost" onclick="exportCSV()">导出 Excel 表 (.csv)</button>'+
+    renderExportButtons(active)+
     '<div style="height:8px;"></div>'+
     '<button class="btn-sm btn-danger" style="width:100%" onclick="clearStudents()">清空批改记录</button>'+
     '</div></div></div>';
@@ -1215,13 +1354,35 @@ function renderStats(){
 }
 
 /* ==================== 导出/清空 ==================== */
-function exportCSV(){
-  const hot=new Set(buildQuestionStats().filter(q=>q.wrongCount>0).sort((a,b)=>b.wrongCount-a.wrongCount || a.pct-b.pct).slice(0,8).map(q=>q.label));
-  let csv='学号,姓名,得分,判断对,选择对,总题数,高频错题';
+function exportCSV(scopeId){
+  ensureClassGroups();
+  const active=scopeId || DB.statsClassId || 'all';
+  const students=getStudentsByClass(active);
+  if(!students.length){
+    toast('当前范围还没有成绩可导出');
+    return;
+  }
+  const hot=new Set(buildQuestionStats(students).filter(q=>q.wrongCount>0).sort((a,b)=>b.wrongCount-a.wrongCount || a.pct-b.pct).slice(0,8).map(q=>q.label));
+  const classOrder={};
+  DB.classes.forEach((c,idx)=>{ classOrder[c.id]=idx; });
+  const rankMap={};
+  DB.classes.forEach(c=>{
+    getStudentsByClass(c.id).sort((a,b)=>b.score-a.score).forEach((s,idx)=>{
+      rankMap[s.id]=idx+1;
+    });
+  });
+  let csv='班级,班内排名,学号,姓名,得分,判断对,选择对,总题数,高频错题';
   for(let i=0;i<DB.keyTF.length;i++) csv+=`,${questionLabel('tf',i)}`;
   for(let i=0;i<DB.keyChoice.length;i++) csv+=`,${questionLabel('choice',i)}`;
   csv+='\n';
-  [...DB.students].sort((a,b)=>b.score-a.score).forEach(s=>{
+  [...students].sort((a,b)=>{
+    if(active==='all'){
+      const ca=classOrder[a.classId] ?? 999;
+      const cb=classOrder[b.classId] ?? 999;
+      if(ca!==cb) return ca-cb;
+    }
+    return b.score-a.score;
+  }).forEach(s=>{
     const wrongLabels=[];
     for(let i=0;i<DB.keyTF.length;i++){
       const a=(s.tfAns[i]||'').trim();
@@ -1234,6 +1395,8 @@ function exportCSV(){
       if(a!==DB.keyChoice[i] && hot.has(label)) wrongLabels.push(label);
     }
     csv+=[
+      csvCell(getClassName(s.classId)),
+      csvCell(rankMap[s.id] || ''),
       csvCell(s.sid||''),
       csvCell(s.name),
       csvCell(s.score),
@@ -1255,7 +1418,9 @@ function exportCSV(){
   const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');
-  a.href=url; a.download='成绩表.csv'; a.click();
+  a.href=url;
+  a.download=active==='all' ? '全部班级成绩表.csv' : `${getClassName(active)}成绩表.csv`;
+  a.click();
   URL.revokeObjectURL(url);
   toast('已导出');
 }
@@ -1263,8 +1428,86 @@ function clearStudents(){
   if(!confirm('清空所有批改记录？标准答案和名册会保留。')) return;
   DB.students=[]; save();
   const fs=document.getElementById('fileStatus'); if(fs) fs.innerHTML='';
-  renderGradeResult(); renderList(); renderStats();
+  renderClassUploads(); renderGradeResult(); renderList(); renderStats(); renderSetupCheck();
   toast('已清空批改记录');
+}
+
+/* ==================== 班级分组 ==================== */
+function renderClassUploads(){
+  const box=document.getElementById('classUploadBox');
+  if(!box) return;
+  ensureClassGroups();
+  let html='<div class="class-upload-list">';
+  DB.classes.forEach((c,idx)=>{
+    const inputId=`omrInput_${c.id}`;
+    const count=getStudentsByClass(c.id).length;
+    html+=`<div class="class-upload-card">
+      <div class="class-upload-head">
+        <input type="text" value="${htmlEscape(c.name)}" aria-label="班级名称" onchange="renameClass('${c.id}',this.value)">
+        <div class="class-upload-actions">
+          ${DB.classes.length>1?`<button class="btn-sm btn-danger" onclick="deleteClassGroup('${c.id}')">删除</button>`:''}
+        </div>
+      </div>
+      <div class="drop" onclick="document.getElementById('${inputId}').click()">
+        <span class="di">📷</span>
+        <div class="dt">上传 ${htmlEscape(c.name)} 答题卡</div>
+        <div class="ds">可一次选择多张图片或多个 PDF</div>
+      </div>
+      <input type="file" id="${inputId}" accept="image/*,.pdf,application/pdf" multiple style="display:none" onchange="handleOMRFilesForClass(this.files,'${c.id}',this)">
+      <div class="class-count">${count ? `已批改 ${count} 人` : '还未上传答题卡'}</div>
+    </div>`;
+  });
+  html+='</div><div class="class-add-row"><button class="btn-ghost" onclick="addClassGroup()">+ 添加班级</button></div>';
+  box.innerHTML=html;
+}
+function addClassGroup(){
+  ensureClassGroups();
+  const next=DB.classes.length+1;
+  DB.classes.push({id:createClassId(), name:`班级${next}`});
+  save();
+  renderClassUploads();
+  renderStats();
+}
+function renameClass(classId,value){
+  ensureClassGroups();
+  const c=DB.classes.find(item=>item.id===classId);
+  if(!c) return;
+  const name=String(value||'').trim() || c.name || '班级';
+  c.name=name;
+  save();
+  renderClassUploads();
+  renderGradeResult();
+  renderList();
+  renderStats();
+  renderSetupCheck();
+}
+function deleteClassGroup(classId){
+  ensureClassGroups();
+  if(DB.classes.length<=1){
+    toast('至少保留一个班级');
+    return;
+  }
+  const c=getClassById(classId);
+  const count=getStudentsByClass(classId).length;
+  const msg=count ? `删除 ${c.name}？该班 ${count} 条批改记录也会一起删除。` : `删除 ${c.name}？`;
+  if(!confirm(msg)) return;
+  DB.classes=DB.classes.filter(item=>item.id!==classId);
+  DB.students=DB.students.filter(s=>s.classId!==classId);
+  if(DB.statsClassId===classId) DB.statsClassId='all';
+  save();
+  renderClassUploads();
+  renderGradeResult();
+  renderList();
+  renderStats();
+  renderSetupCheck();
+  toast('已删除班级');
+}
+async function handleOMRFilesForClass(files,classId,input){
+  try{
+    await handleOMRFiles(files,classId);
+  }finally{
+    if(input) input.value='';
+  }
 }
 
 /* ==================== 模式切换 ==================== */
@@ -2519,19 +2762,22 @@ async function expandToImageSources(file){
 /* 批量处理填涂卡 */
 async function handleCameraFiles(files,input){
   try{
-    await handleOMRFiles(files);
+    await handleOMRFiles(files, getClassById().id);
   }finally{
     if(input) input.value='';
   }
 }
 
-async function handleOMRFiles(files){
+async function handleOMRFiles(files,classId){
   if(!files || !files.length) return;
   if(!validateOMRReady()) return;
+  ensureClassGroups();
+  const targetClass=getClassById(classId || DB.classes[0].id);
+  classId=targetClass.id;
 
   const status=document.getElementById('fileStatus');
   status.innerHTML=`<div class="filechip"><span class="fx">📷</span>
-    <span style="flex:1">共 ${files.length} 个文件，正在展开…</span>
+    <span style="flex:1">${htmlEscape(targetClass.name)}：共 ${files.length} 个文件，正在展开…</span>
     <span><span class="loading"></span></span></div>`;
 
   const rosterMap={};
@@ -2555,7 +2801,7 @@ async function handleOMRFiles(files){
   for(let idx=0;idx<allSources.length;idx++){
     const src=allSources[idx];
     status.innerHTML=`<div class="filechip"><span class="fx">📷</span>
-      <span style="flex:1">${src.label}</span>
+      <span style="flex:1">${htmlEscape(targetClass.name)}：${htmlEscape(src.label)}</span>
       <span><span class="loading"></span>${idx+1}/${allSources.length}</span></div>`;
     if(src.expandError){
       failCount++; failures.push(`${src.label}：${src.expandError}`); continue;
@@ -2571,6 +2817,7 @@ async function handleOMRFiles(files){
       }
       const student={
         id:Date.now()+Math.random(),
+        classId,
         sid:r.sid,
         name: matchedName || (`学号 ${r.sid}`),
         tfAns:r.tfAns,
@@ -2593,14 +2840,14 @@ async function handleOMRFiles(files){
     }
   }
 
-  // 合并/覆盖：能识别出有效 sid 的按 sid 去重；其余的按文件名+sid 区分
+  // 合并/覆盖：同班能识别出有效 sid 的按 sid 去重；其余的按文件名+sid 区分
   const byKey={};
   [...DB.students, ...newStudents].forEach(s=>{
     let k;
     if(s.sid && !/[_?]/.test(s.sid)){
-      k = 'sid:'+s.sid;
+      k = 'class:'+(s.classId||classId)+':sid:'+s.sid;
     }else{
-      k = 'file:'+(s.srcFile||s.id);
+      k = 'class:'+(s.classId||classId)+':file:'+(s.srcFile||s.id);
     }
     byKey[k]=mergeStudentRecord(byKey[k],s);
   });
@@ -2609,14 +2856,16 @@ async function handleOMRFiles(files){
 
   let html=`<div class="filechip" style="background:rgba(47,158,115,.1);">
     <span class="fx" style="background:var(--green)">✓</span>
-    <span style="flex:1">成功识别 ${okCount} 张</span>`;
+    <span style="flex:1">${htmlEscape(targetClass.name)}：成功识别 ${okCount} 张</span>`;
   if(failCount) html+=`<span style="color:var(--red);font-weight:700">失败 ${failCount}</span>`;
   html+='</div>';
   if(failures.length){
-    html+=`<div class="mini" style="color:var(--red);margin-top:6px;">${failures.join('<br>')}</div>`;
+    html+=`<div class="mini" style="color:var(--red);margin-top:6px;">${failures.map(htmlEscape).join('<br>')}</div>`;
   }
   status.innerHTML=html;
-  toast(`已处理 ${okCount} 张`);
+  toast(`${targetClass.name} 已处理 ${okCount} 张`);
+  renderClassUploads();
+  renderSetupCheck();
   renderGradeResult();
   document.getElementById('gradeResultBox').scrollIntoView({behavior:'smooth'});
 }
@@ -2643,6 +2892,7 @@ async function handleOMRFiles(files){
   setRosterTab('xlsx');
   // 渲染名册
   renderRoster();
+  renderClassUploads();
   renderSetupCheck();
   // 拖拽（.docx）
   const dz=document.getElementById('dropZone');
