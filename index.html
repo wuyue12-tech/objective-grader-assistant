@@ -84,6 +84,21 @@
   }
   .btn-sm{padding:7px 13px;font-size:12.5px;background:var(--paper-deep);color:var(--ink);}
   .btn-danger{background:#fff;color:var(--red);border:1.5px solid var(--red);}
+  .btn-row{display:flex;gap:8px;align-items:center;}
+  .btn-row>*{flex:1;}
+  .manual-tag{
+    display:inline-flex;align-items:center;border:1px solid rgba(31,138,122,.28);
+    color:var(--teal);background:rgba(31,138,122,.08);
+    border-radius:999px;padding:2px 7px;font-size:11px;font-weight:700;margin-left:6px;
+  }
+  .edit-panel{
+    margin-top:10px;padding:11px;border:1px solid var(--line);
+    border-radius:8px;background:var(--paper);
+  }
+  .edit-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;}
+  .edit-panel label{font-size:11px;color:var(--mute);margin-bottom:3px;}
+  .edit-panel input{font-size:13px;padding:8px 9px;}
+  .edit-panel .ans-input{text-align:left;letter-spacing:1.5px;font-family:'Noto Sans SC',sans-serif;}
 
   /* 答案串输入 */
   .ans-input{
@@ -366,7 +381,7 @@
 
 <header>
   <div class="topbar">
-    <div class="brand"><span class="seal">批</span>客观题批改助手 <span class="version-badge">V12</span></div>
+    <div class="brand"><span class="seal">批</span>客观题批改助手 <span class="version-badge">V13</span></div>
     <div class="header-status">本地批改 · 数据保存在当前浏览器</div>
   </div>
 </header>
@@ -406,12 +421,18 @@
         </div>
       </div>
       <div class="field">
+        <label>粘贴整份标准答案（可选）</label>
+        <textarea id="keyPasteArea" rows="4" placeholder="例：1. F 2. F 3. T 4. F 5. T&#10;6. C 7. D 8. B 9. D 10. D"></textarea>
+        <button class="btn-ghost" style="margin-top:8px;" onclick="applyPastedKey()">智能识别并填入答案</button>
+        <p class="mini" id="smartKeyStatus"></p>
+      </div>
+      <div class="field">
         <label>判断题正确答案（按顺序，对→T，错→F）</label>
         <input type="text" id="keyTF" class="ans-input" placeholder="例：TTFFTTFF">
       </div>
       <div class="field">
         <label>选择题正确答案（按顺序）</label>
-        <input type="text" id="keyChoice" class="ans-input" placeholder="例：APCDDCPAAB CDDCBBAABB">
+        <input type="text" id="keyChoice" class="ans-input" placeholder="例：ABCDDCBAAB CDDCBBAABB">
       </div>
       <button class="btn-primary" onclick="saveKey()">保存标准答案</button>
       <p class="mini" id="keySaved"></p>
@@ -552,7 +573,7 @@ if(window.pdfjsLib){
 }
 
 /* ==================== 数据存储 ==================== */
-const DB_KEY='grader_v12';
+const DB_KEY='grader_v13';
 let DB={
   scoreTF:1, scoreChoice:2,
   keyTF:'',     // 'TTFFTTFF'
@@ -566,14 +587,14 @@ let DB={
   classes:[{id:'class_1', name:'班级1'}],
   statsClassId:'all',
   roster:[],    // [{id:'001', name:'张三'}, ...]
-  students:[]   // {id, classId, name, sid, tfAns, choiceAns, tfCorrect, choiceCorrect, score, totalScore, parseWarn, omrDebugImg?}
+  students:[]   // {id, classId, name, sid, tfAns, choiceAns, tfCorrect, choiceCorrect, score, totalScore, parseWarn, manualEdited, omrDebugImg?}
 };
 try{
   const d=JSON.parse(localStorage.getItem(DB_KEY));
   if(d) Object.assign(DB,d);
   else{
     // 尝试从老版本迁移
-    const old=JSON.parse(localStorage.getItem('grader_v11')) || JSON.parse(localStorage.getItem('grader_v10')) || JSON.parse(localStorage.getItem('grader_v9')) || JSON.parse(localStorage.getItem('grader_v8')) || JSON.parse(localStorage.getItem('grader_v7')) || JSON.parse(localStorage.getItem('grader_v4')) || JSON.parse(localStorage.getItem('grader_v3'));
+    const old=JSON.parse(localStorage.getItem('grader_v12')) || JSON.parse(localStorage.getItem('grader_v11')) || JSON.parse(localStorage.getItem('grader_v10')) || JSON.parse(localStorage.getItem('grader_v9')) || JSON.parse(localStorage.getItem('grader_v8')) || JSON.parse(localStorage.getItem('grader_v7')) || JSON.parse(localStorage.getItem('grader_v4')) || JSON.parse(localStorage.getItem('grader_v3'));
     if(old){
       Object.assign(DB, old);
       DB.mode='omr';
@@ -615,6 +636,18 @@ function getStudentsByClass(classId='all'){
   ensureClassGroups();
   if(classId==='all') return DB.students || [];
   return (DB.students||[]).filter(s=>s.classId===classId);
+}
+function findRosterNameBySid(sid){
+  sid=String(sid||'').trim();
+  if(!sid) return '';
+  const clean=sid.replace(/^0+/,'') || sid;
+  const exact=(DB.roster||[]).find(r=>String(r.id)===sid);
+  if(exact) return exact.name || '';
+  const loose=(DB.roster||[]).find(r=>{
+    const rid=String(r.id||'');
+    return (rid.replace(/^0+/,'') || rid)===clean;
+  });
+  return loose ? (loose.name || '') : '';
 }
 ensureClassGroups();
 function save(){
@@ -665,6 +698,77 @@ function normalizeTF(s){
     .replace(/对的|正确的|正确|对|√|✓|TRUE|YES/g,'T')
     .replace(/错的|错误的|错误|错|×|✗|✘|FALSE|NO/g,'F')
     .replace(/[^TF]/g,'');
+}
+function normalizeAnswerToken(token){
+  const t=String(token||'').trim().toUpperCase();
+  if(/^(T|TRUE|YES|对|正确|正确的|√|✓)$/.test(t)) return 'T';
+  if(/^(F|FALSE|NO|错|错误|错误的|×|✗|✘)$/.test(t)) return 'F';
+  if(/^[A-D]$/.test(t)) return t;
+  return '';
+}
+function parseNumberedAnswerText(text){
+  text=String(text||'').replace(/\u3000/g,' ');
+  const items=[], duplicates=[], seen=new Set();
+  const re=/(^|[^\d])(?:第\s*)?(\d{1,3})\s*(?:题)?\s*[\.．、:：\)\]）-]?\s*(正确的|错误的|正确|错误|TRUE|FALSE|YES|NO|[TtFfAaBbCcDd]|对|错|√|✓|×|✗|✘)/g;
+  let m;
+  while((m=re.exec(text))){
+    const no=parseInt(m[2],10);
+    const ans=normalizeAnswerToken(m[3]);
+    if(!no || !ans) continue;
+    if(seen.has(no)) duplicates.push(no);
+    seen.add(no);
+    items.push({no, ans});
+  }
+  if(!items.length){
+    return {ok:false, message:'没有识别到带题号的答案。请保留“1. F 2. F 3. T”这样的题号。'};
+  }
+  items.sort((a,b)=>a.no-b.no);
+  const byNo=new Map(items.map(x=>[x.no,x.ans]));
+  const maxNo=Math.max(...items.map(x=>x.no));
+  const firstChoice=items.find(x=>'ABCD'.includes(x.ans));
+  const nTF=firstChoice ? firstChoice.no-1 : maxNo;
+  const nCh=firstChoice ? maxNo-nTF : 0;
+  const missing=[], illegal=[];
+  let keyTF='', keyChoice='';
+  for(let no=1; no<=maxNo; no++){
+    const ans=byNo.get(no);
+    if(!ans){ missing.push(no); continue; }
+    if(no<=nTF){
+      if(ans==='T' || ans==='F') keyTF+=ans;
+      else illegal.push(no);
+    }else{
+      if('ABCD'.includes(ans)) keyChoice+=ans;
+      else illegal.push(no);
+    }
+  }
+  const notes=[];
+  if(duplicates.length) notes.push(`重复题号：${[...new Set(duplicates)].join('、')}`);
+  if(missing.length) notes.push(`缺少题号：${missing.join('、')}`);
+  if(illegal.length) notes.push(`题型异常：第 ${illegal.join('、')} 题答案和自动判断的题型不一致`);
+  return {ok:!missing.length && !illegal.length && !duplicates.length, keyTF, keyChoice, nTF, nCh, total:maxNo, notes};
+}
+function applyPastedKey(){
+  const area=document.getElementById('keyPasteArea');
+  const status=document.getElementById('smartKeyStatus');
+  const result=parseNumberedAnswerText(area ? area.value : '');
+  if(!result.ok){
+    const extra=result.notes && result.notes.length ? `：${result.notes.join('；')}` : '';
+    status.textContent=(result.message || '答案识别失败') + extra;
+    status.style.color='var(--red)';
+    toast('答案识别失败，请核对题号');
+    return;
+  }
+  document.getElementById('keyTF').value=result.keyTF;
+  document.getElementById('keyChoice').value=result.keyChoice;
+  DB.tplTFCount=result.nTF;
+  DB.tplChoiceCount=result.nCh;
+  save();
+  syncTemplateControls();
+  renderSetupCheck();
+  renderTemplatePreview();
+  status.textContent=`已识别：判断题 ${result.nTF} 题，选择题 ${result.nCh} 题。请核对后点击“保存标准答案”。`;
+  status.style.color='var(--green)';
+  toast('已识别并填入答案');
 }
 function normalizeCount(n, fallback, max){
   n=parseInt(n,10);
@@ -794,6 +898,17 @@ function saveKey(){
   const kTF=normalizeTF(document.getElementById('keyTF').value);
   const kCh=normalizeChoice(document.getElementById('keyChoice').value);
   if(!kTF.length && !kCh.length){ toast('请至少录入一种题型的答案'); return; }
+  const tplCounts=getQCounts();
+  const mismatch = tplCounts.nTF!==kTF.length || tplCounts.nCh!==kCh.length;
+  if(mismatch){
+    const ok=confirm(`标准答案数量和模板题量不一致。\n\n模板：判断 ${tplCounts.nTF} 题，选择 ${tplCounts.nCh} 题\n答案：判断 ${kTF.length} 题，选择 ${kCh.length} 题\n\n如果学生已经使用当前模板，请点“取消”并补齐答案；如果还没有发给学生，可点“确定”同步修改模板题量。`);
+    if(!ok){
+      toast('请先核对答案数量');
+      return;
+    }
+    DB.tplTFCount=kTF.length;
+    DB.tplChoiceCount=kCh.length;
+  }
   DB.scoreTF=sTF; DB.scoreChoice=sCh;
   DB.keyTF=kTF; DB.keyChoice=kCh;
   DB.saved=true;
@@ -803,12 +918,12 @@ function saveKey(){
   syncTemplateControls();
   renderKeyPreview();
   renderSetupCheck();
-  const tplCounts=getQCounts();
-  const mismatch = tplCounts.nTF!==kTF.length || tplCounts.nCh!==kCh.length;
+  const afterCounts=getQCounts();
+  const stillMismatch = afterCounts.nTF!==kTF.length || afterCounts.nCh!==kCh.length;
   document.getElementById('keySaved').textContent=
     `✓ 已保存：判断 ${kTF.length} 题 × ${sTF} 分 ＋ 选择 ${kCh.length} 题 × ${sCh} 分 ＝ 总分 ${kTF.length*sTF+kCh.length*sCh}` +
-    (mismatch ? `；注意：模板题量为判断 ${tplCounts.nTF} 题、选择 ${tplCounts.nCh} 题` : '');
-  toast(mismatch ? '答案数量和模板题量不一致，请检查' : '标准答案已保存');
+    (stillMismatch ? `；注意：模板题量为判断 ${afterCounts.nTF} 题、选择 ${afterCounts.nCh} 题` : '');
+  toast(stillMismatch ? '答案数量和模板题量不一致，请检查' : '标准答案已保存');
 }
 function renderKeyPreview(){
   if(!DB.saved){ document.getElementById('keyPreview').style.display='none'; return; }
@@ -1022,15 +1137,19 @@ function extractName(text){
 
 /* ==================== 批改/评分 ==================== */
 function regrade(s){
-  let tfRight=0, chRight=0, tfBad=0, chBad=0;
+  s.tfAns=String(s.tfAns||'');
+  s.choiceAns=String(s.choiceAns||'');
+  let tfRight=0, chRight=0, tfBad=0, chBad=0, tfBlank=0, chBlank=0;
   for(let i=0;i<DB.keyTF.length;i++){
     const a=(s.tfAns[i]||'').trim();
-    if(a==='?') tfBad++;
+    if(!a) tfBlank++;
+    else if(a==='?') tfBad++;
     else if(a && a===DB.keyTF[i]) tfRight++;
   }
   for(let i=0;i<DB.keyChoice.length;i++){
     const a=(s.choiceAns[i]||'').trim();
-    if(a==='?') chBad++;
+    if(!a) chBlank++;
+    else if(a==='?') chBad++;
     else if(a && a===DB.keyChoice[i]) chRight++;
   }
   s.tfCorrect=tfRight;
@@ -1039,8 +1158,10 @@ function regrade(s){
   s.totalScore=DB.keyTF.length*DB.scoreTF + DB.keyChoice.length*DB.scoreChoice;
   // 警告：识别异常
   const warns=[];
+  if(!s.manualEdited && s.scanWarn) warns.push(s.scanWarn);
   if(s.tfAns.length<DB.keyTF.length) warns.push(`判断题只识别 ${s.tfAns.length}/${DB.keyTF.length} 格`);
   if(s.choiceAns.length<DB.keyChoice.length) warns.push(`选择题只识别 ${s.choiceAns.length}/${DB.keyChoice.length} 格`);
+  if(tfBlank+chBlank>0) warns.push(`${tfBlank+chBlank} 题未识别或未作答`);
   if(tfBad+chBad>0) warns.push(`${tfBad+chBad} 题识别字符可疑（非 A-D 或 T/F）`);
   s.parseWarn=warns.join('；');
 }
@@ -1068,14 +1189,41 @@ function renderGradeResult(){
   const ordered=[];
   DB.classes.forEach(c=>getStudentsByClass(c.id).forEach(s=>ordered.push(s)));
   ordered.forEach((s,idx)=>{
+    const dbIdx=DB.students.indexOf(s);
     const warn=!!s.parseWarn;
-    html+=`<div class="stu-item" onclick="toggleDetail(${idx})" style="cursor:pointer;">
-      <span class="nm">${htmlEscape(s.name)}<div class="sub">${htmlEscape(getClassName(s.classId))} · ${s.sid?`学号 ${htmlEscape(s.sid)} · `:''}${s.tfCorrect}/${DB.keyTF.length}判 · ${s.choiceCorrect}/${DB.keyChoice.length}选</div></span>
+    html+=`<div class="stu-item" onclick="toggleDetail(${dbIdx})" style="cursor:pointer;">
+      <span class="nm">${htmlEscape(s.name)}${s.manualEdited?'<span class="manual-tag">已修正</span>':''}<div class="sub">${htmlEscape(getClassName(s.classId))} · ${s.sid?`学号 ${htmlEscape(s.sid)} · `:''}${s.tfCorrect}/${DB.keyTF.length}判 · ${s.choiceCorrect}/${DB.keyChoice.length}选</div></span>
       ${warn?`<span class="badge warn">⚠</span>`:''}
       <span class="sc" style="color:${s.score>=s.totalScore*0.6?'var(--green)':'var(--red)'}">${s.score}</span>
     </div>
-    <div class="detail-box" id="detail-${idx}" style="display:none;">`;
+    <div class="detail-box" id="detail-${dbIdx}" style="display:none;">`;
     if(s.parseWarn) html+=`<p class="mini" style="color:var(--gold);">⚠ ${s.parseWarn}</p>`;
+    html+=`<div class="edit-panel">
+      <div style="font-weight:700;font-size:12px;">人工修正</div>
+      <div class="mini">识别不清晰时，可直接修正学号、姓名或答案；保存后会自动重新计分并更新讲评统计。答案中可用“-”表示空白。</div>
+      <div class="edit-grid">
+        <div>
+          <label>学号</label>
+          <input type="text" id="editSid-${dbIdx}" value="${htmlEscape(s.sid||'')}">
+        </div>
+        <div>
+          <label>姓名</label>
+          <input type="text" id="editName-${dbIdx}" value="${htmlEscape(s.name||'')}">
+        </div>
+      </div>
+      <div class="field" style="margin-top:8px;margin-bottom:8px;">
+        <label>判断题答案</label>
+        <input type="text" class="ans-input" id="editTF-${dbIdx}" value="${htmlEscape(studentAnswerForEdit(s.tfAns,DB.keyTF.length))}" placeholder="例：TFFTF">
+      </div>
+      <div class="field" style="margin-bottom:8px;">
+        <label>选择题答案</label>
+        <input type="text" class="ans-input" id="editChoice-${dbIdx}" value="${htmlEscape(studentAnswerForEdit(s.choiceAns,DB.keyChoice.length))}" placeholder="例：CDBDDADDC...">
+      </div>
+      <div class="btn-row">
+        <button class="btn-sm" onclick="saveStudentCorrection(${dbIdx})">保存修正</button>
+        <button class="btn-sm" onclick="restoreRecognizedResult(${dbIdx})">恢复识别结果</button>
+      </div>
+    </div>`;
     // 判断题答题点阵
     if(DB.keyTF.length){
       html+=`<div style="margin:6px 0 3px;font-size:11px;color:var(--mute);">判断题（第1-${DB.keyTF.length}题）</div><div>`;
@@ -1120,6 +1268,77 @@ function toggleDetail(i){
   const d=document.getElementById('detail-'+i);
   d.style.display=d.style.display==='none'?'block':'none';
 }
+function studentAnswerForEdit(ans,len){
+  const arr=String(ans||'').split('');
+  while(arr.length<len) arr.push(' ');
+  return arr.slice(0,len).map(c=>c.trim()?c:'-').join('');
+}
+function normalizeStudentAnswerInput(raw,type,len){
+  let text=String(raw||'')
+    .replace(/对的|正确的|正确|对|√|✓|TRUE|YES/gi,'T')
+    .replace(/错的|错误的|错误|错|×|✗|✘|FALSE|NO/gi,'F')
+    .toUpperCase();
+  const allowed=type==='tf' ? 'TF' : 'ABCD';
+  const arr=[];
+  for(const ch of text){
+    if(allowed.includes(ch)) arr.push(ch);
+    else if(ch==='?' || ch==='？') arr.push('?');
+    else if(ch==='-' || ch==='_' || ch==='空') arr.push(' ');
+  }
+  while(arr.length<len) arr.push(' ');
+  return arr.slice(0,len).join('');
+}
+function rememberOriginalRecognition(s){
+  if(!s.rawSaved){
+    s.rawSid=s.sid||'';
+    s.rawName=s.name||'';
+    s.rawTfAns=s.tfAns||'';
+    s.rawChoiceAns=s.choiceAns||'';
+    s.rawSaved=true;
+  }
+}
+function refreshAfterStudentEdit(){
+  save();
+  renderGradeResult();
+  renderList();
+  renderStats();
+  renderSetupCheck();
+}
+function saveStudentCorrection(i){
+  const s=DB.students[i];
+  if(!s) return;
+  rememberOriginalRecognition(s);
+  const sid=(document.getElementById('editSid-'+i)?.value||'').trim();
+  const typedName=(document.getElementById('editName-'+i)?.value||'').trim();
+  const rosterName=findRosterNameBySid(sid);
+  s.sid=sid;
+  s.name=typedName || rosterName || (sid ? `学号 ${sid}` : '未命名');
+  s.tfAns=normalizeStudentAnswerInput(document.getElementById('editTF-'+i)?.value||'','tf',DB.keyTF.length);
+  s.choiceAns=normalizeStudentAnswerInput(document.getElementById('editChoice-'+i)?.value||'','choice',DB.keyChoice.length);
+  s.manualEdited=true;
+  s.manualEditedAt=new Date().toISOString();
+  s.unmatched=!!(DB.roster.length && sid && !rosterName);
+  regrade(s);
+  refreshAfterStudentEdit();
+  toast('已保存人工修正，并重新计分');
+}
+function restoreRecognizedResult(i){
+  const s=DB.students[i];
+  if(!s || !s.rawSaved){
+    toast('没有可恢复的原始识别结果');
+    return;
+  }
+  s.sid=s.rawSid||'';
+  s.name=s.rawName||findRosterNameBySid(s.sid)||'未命名';
+  s.tfAns=s.rawTfAns||'';
+  s.choiceAns=s.rawChoiceAns||'';
+  s.manualEdited=false;
+  s.manualEditedAt='';
+  s.unmatched=!!(DB.roster.length && s.sid && !findRosterNameBySid(s.sid));
+  regrade(s);
+  refreshAfterStudentEdit();
+  toast('已恢复原始识别结果');
+}
 
 /* ==================== 视图3：成绩单 ==================== */
 function renderList(){
@@ -1143,7 +1362,7 @@ function renderList(){
     const c=s.score>=s.totalScore*0.85?'var(--green)':s.score>=s.totalScore*0.6?'var(--ink)':'var(--red)';
     html+=`<div class="stu-item">
       <span class="badge ${idx<3?'warn':'todo'}">${idx+1}</span>
-      <span class="nm">${htmlEscape(s.name)}<div class="sub">${htmlEscape(getClassName(s.classId))}${s.sid?` · 学号 ${htmlEscape(s.sid)}`:''}</div></span>
+      <span class="nm">${htmlEscape(s.name)}${s.manualEdited?'<span class="manual-tag">已修正</span>':''}<div class="sub">${htmlEscape(getClassName(s.classId))}${s.sid?` · 学号 ${htmlEscape(s.sid)}`:''}</div></span>
       <span class="sub">${s.tfCorrect+s.choiceCorrect}/${DB.keyTF.length+DB.keyChoice.length}</span>
       <span class="sc" style="color:${c}">${s.score}</span>
     </div>`;
@@ -1371,7 +1590,7 @@ function exportCSV(scopeId){
       rankMap[s.id]=idx+1;
     });
   });
-  let csv='班级,班内排名,学号,姓名,得分,判断对,选择对,总题数,高频错题';
+  let csv='班级,班内排名,学号,姓名,人工修正,得分,判断对,选择对,总题数,高频错题';
   for(let i=0;i<DB.keyTF.length;i++) csv+=`,${questionLabel('tf',i)}`;
   for(let i=0;i<DB.keyChoice.length;i++) csv+=`,${questionLabel('choice',i)}`;
   csv+='\n';
@@ -1399,6 +1618,7 @@ function exportCSV(scopeId){
       csvCell(rankMap[s.id] || ''),
       csvCell(s.sid||''),
       csvCell(s.name),
+      csvCell(s.manualEdited?'是':''),
       csvCell(s.score),
       csvCell(`${s.tfCorrect}/${DB.keyTF.length}`),
       csvCell(`${s.choiceCorrect}/${DB.keyChoice.length}`),
@@ -2826,11 +3046,17 @@ async function handleOMRFiles(files,classId){
         omrDebugImg: r.debugImg,
         srcFile: src.label,
         unmatched: DB.roster.length ? !matchedName : false,
+        rawSid:r.sid,
+        rawName:matchedName || (`学号 ${r.sid}`),
+        rawTfAns:r.tfAns,
+        rawChoiceAns:r.chAns,
+        rawSaved:true,
+        manualEdited:false,
       };
       const warns=[];
       if(r.sidWarn) warns.push('学号涂卡异常（含 ? 或 _）');
       if(DB.roster.length && !matchedName) warns.push('名册中未找到该学号');
-      student.parseWarn=warns.join('；');
+      student.scanWarn=warns.join('；');
       regrade(student);
       newStudents.push(student);
       okCount++;
