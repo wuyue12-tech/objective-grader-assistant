@@ -5,9 +5,7 @@
 ## 当前进度
 
 - 当前主版本：V13
-- 当前稳定标签：`v13-omr-rect-stability`
-- 当前主要入口：`site_v13/index.html`
-- 当前开发分支：`codex/v11-flow-ui`
+- 当前线上版本：以 `main` 分支根目录 `index.html` 为准
 - 线上网址：`https://checkassistant.netlify.app/`
 - 工具正式名称：客观题批改助手
 
