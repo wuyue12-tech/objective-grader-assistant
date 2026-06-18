@@ -381,7 +381,7 @@
 
 <header>
   <div class="topbar">
-    <div class="brand"><span class="seal">批</span>客观题批改助手 <span class="version-badge">V13</span></div>
+    <div class="brand"><span class="seal">批</span>客观题批改助手 <span class="version-badge">V14</span></div>
     <div class="header-status">本地批改 · 数据保存在当前浏览器</div>
   </div>
 </header>
@@ -498,6 +498,12 @@
       </p>
 
       <div class="field">
+        <label for="tplTitle">答题卡标题</label>
+        <input type="text" id="tplTitle" maxlength="40" value="答题卡" oninput="setTemplateTitle()" placeholder="例：七下数学第三单元测验">
+        <p class="mini">打印在每张答题卡顶部，用来区分不同考试或练习。</p>
+      </div>
+
+      <div class="field">
         <label>题目数量</label>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
           <div>
@@ -581,6 +587,7 @@ let DB={
   saved:false,
   mode:'omr',
   perPage:2,    // 1 | 2 | 4 | 6 | 8 张答题卡/A4
+  tplTitle:'答题卡',
   tplTFCount:null,
   tplChoiceCount:null,
   markShape:'rect',
@@ -624,6 +631,13 @@ function ensureClassGroups(){
     if(!s.classId) s.classId=first;
     return s;
   });
+}
+function normalizeTemplateTitle(value){
+  const title=String(value==null?'':value).replace(/\s+/g,' ').trim().slice(0,40);
+  return title || '答题卡';
+}
+function sanitizeFilePart(value){
+  return normalizeTemplateTitle(value).replace(/[\\/:*?"<>|]/g,'').replace(/\s+/g,'_').slice(0,40) || '答题卡';
 }
 function getClassById(classId){
   ensureClassGroups();
@@ -1941,6 +1955,8 @@ function buildTemplateSVG(){
   const {nTF,nCh}=getQCounts();
   const M=getTemplateMetrics();
   const bubbleR=M.bubbleR;
+  const tplTitle=normalizeTemplateTitle(DB.tplTitle);
+  const titleFont=Math.max(12, Math.min(M.titleFont, Math.floor(460 / Math.max(1, tplTitle.length))));
   let svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" style="background:#fff;font-family:'Helvetica','Noto Sans SC',sans-serif;">`;
 
   // 四角定位方块
@@ -1956,7 +1972,7 @@ function buildTemplateSVG(){
 
   // 标题行
   const titleY = marginY + 14;
-  svg+=`<text x="${W/2}" y="${titleY}" text-anchor="middle" font-size="${M.titleFont}" font-weight="bold">答  题  卡</text>`;
+  svg+=`<text x="${W/2}" y="${titleY}" text-anchor="middle" font-size="${titleFont}" font-weight="bold">${htmlEscape(tplTitle)}</text>`;
   svg+=`<text x="${W/2}" y="${titleY+M.titleFont}" text-anchor="middle" font-size="${M.subFont}" fill="#888">用 2B 铅笔将选项框完全涂黑；保持答题卡清洁、平整、不折叠</text>`;
 
   // —— 上部信息区：学号矩阵（左）+ 姓名/班级/日期（右）并排 ——
@@ -2081,8 +2097,10 @@ function renderTemplatePreview(){
   box.innerHTML=buildTemplateSheetSVG(DB.perPage);
 }
 function syncTemplateControls(){
+  const title=document.getElementById('tplTitle');
   const tf=document.getElementById('tplTFCount');
   const ch=document.getElementById('tplChoiceCount');
+  if(title) title.value = normalizeTemplateTitle(DB.tplTitle);
   if(tf) tf.value = DB.tplTFCount==='' ? '' : normalizeTemplateCountValue(DB.tplTFCount, DB.keyTF.length||8, 80);
   if(ch) ch.value = DB.tplChoiceCount==='' ? '' : normalizeTemplateCountValue(DB.tplChoiceCount, DB.keyChoice.length||20, 120);
   renderTemplateCountHint();
@@ -2100,9 +2118,16 @@ function downloadTemplateSVG(){
   const blob=new Blob([svg],{type:'image/svg+xml'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');
-  a.href=url; a.download=`答题卡模板_${n}张每页.svg`; a.click();
+  a.href=url; a.download=`答题卡模板_${sanitizeFilePart(DB.tplTitle)}_${n}张每页.svg`; a.click();
   URL.revokeObjectURL(url);
   toast('已下载');
+}
+
+function setTemplateTitle(){
+  const input=document.getElementById('tplTitle');
+  DB.tplTitle=normalizeTemplateTitle(input ? input.value : DB.tplTitle);
+  save();
+  renderTemplatePreview();
 }
 
 function setTemplateCounts(){
@@ -2259,7 +2284,7 @@ async function downloadTemplateDocx(){
       mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
     const url=URL.createObjectURL(blob);
     const a=document.createElement('a');
-    a.href=url; a.download=`答题卡模板_${n}张每页.docx`; a.click();
+    a.href=url; a.download=`答题卡模板_${sanitizeFilePart(DB.tplTitle)}_${n}张每页.docx`; a.click();
     URL.revokeObjectURL(url);
     toast('已下载 Word 模板');
   }catch(err){
