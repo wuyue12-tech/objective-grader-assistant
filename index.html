@@ -6,23 +6,31 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>客观题批改助手</title>
+<title>题卡快批</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/regular/style.css">
+<link rel="stylesheet" href="tokens.css">
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;700;900&family=Noto+Sans+SC:wght@400;500;700&display=swap');
+  /* Hallmark · macrostructure: Workbench · theme: studied-DNA (source: image) · tone: quiet professional · anchor hue: fresh green */
+  /* Hallmark · pre-emit critique: P5 H5 E4 S5 R5 V4 · contrast: pass · nav: N3 · responsive: pass · mobile: pass */
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&display=swap');
   :root{
-    --ink:#20272f; --paper:#f6f7f3; --paper-deep:#e9ede6;
-    --card:#ffffff; --red:#dc5a42; --green:#2f9e73;
-    --gold:#b7791f; --blue:#2a7d8e; --line:#dfe4dc; --mute:#6f766f;
-    --shadow:0 6px 20px rgba(31,41,51,.06);
-    --header:#ffffff; --teal:#1f8a7a;
+    --ink:var(--color-ink); --paper:var(--color-canvas); --paper-deep:var(--color-workspace);
+    --card:var(--color-panel); --red:var(--color-danger); --green:var(--color-success);
+    --gold:var(--color-warning); --blue:var(--color-accent-ink); --line:var(--color-line); --mute:var(--color-muted);
+    --line-soft:var(--color-line); --accent:var(--color-accent); --accent-soft:var(--color-accent-soft);
+    --accent-ink:var(--color-accent-ink); --header:var(--color-sidebar); --teal:var(--color-accent);
+    --shadow:var(--shadow-paper); --focus:var(--focus-ring);
+    --space-1:var(--space-2xs); --space-2:var(--space-xs); --space-3:var(--space-sm); --space-4:var(--space-md);
+    --space-5:var(--space-lg); --space-6:var(--space-xl); --space-8:var(--space-2xl);
   }
+  html,body{overflow-x:clip;}
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
   body{
     font-family:'Noto Sans SC',sans-serif;background:var(--paper);
-    color:var(--ink);-webkit-font-smoothing:antialiased;padding-bottom:82px;min-height:100vh;
+    color:var(--ink);-webkit-font-smoothing:antialiased;min-height:100vh;
   }
   header{
     background:var(--header);color:var(--ink);padding:12px 18px;
@@ -30,7 +38,7 @@
   }
   header .topbar{max-width:1120px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:14px;}
   header .brand{
-    font-family:'Noto Serif SC',serif;font-weight:900;font-size:19px;
+    font-family:var(--font-body);font-weight:700;font-size:19px;
     display:flex;align-items:center;gap:9px;
   }
   .version-badge{
@@ -41,7 +49,7 @@
   header .seal{
     width:26px;height:26px;border:2px solid var(--teal);color:var(--teal);
     border-radius:5px;display:flex;align-items:center;justify-content:center;
-    font-family:'Noto Serif SC',serif;font-weight:900;font-size:13px;
+    font-family:var(--font-body);font-weight:700;font-size:13px;
     background:rgba(31,138,122,.08);transform:rotate(-6deg);
   }
   .header-status{font-size:12px;color:var(--mute);font-weight:700;white-space:nowrap;}
@@ -54,17 +62,17 @@
     padding:18px;margin-bottom:12px;box-shadow:var(--shadow);
   }
   .card h2{
-    font-family:'Noto Serif SC',serif;font-size:16px;font-weight:700;
+    font-family:var(--font-body);font-size:16px;font-weight:700;
     margin-bottom:10px;display:flex;align-items:center;gap:8px;
   }
   .card h2 .num{
-    background:var(--teal);color:#fff;width:22px;height:22px;border-radius:7px;
+    background:var(--teal);color:var(--color-on-dark);width:22px;height:22px;border-radius:7px;
     display:flex;align-items:center;justify-content:center;font-size:12px;flex:none;
   }
   label{font-size:12.5px;font-weight:600;display:block;margin-bottom:5px;color:var(--ink);}
   input[type=text],input[type=number],textarea{
     width:100%;padding:10px 12px;border:1.5px solid var(--line);border-radius:8px;
-    font-size:15px;font-family:inherit;background:#fff;color:var(--ink);
+    font-size:15px;font-family:inherit;background:var(--color-paper);color:var(--ink);
   }
   textarea{line-height:1.5;resize:vertical;}
   input:focus,textarea:focus{outline:none;border-color:var(--blue);}
@@ -72,10 +80,12 @@
   .row>*{flex:1;}
   .field{margin-bottom:11px;}
 
-  button{font-family:inherit;cursor:pointer;border:none;border-radius:8px;font-weight:700;transition:transform .08s;}
-  button:active{transform:scale(.97);}
+  button{font-family:inherit;cursor:pointer;border:none;border-radius:var(--radius-sm);font-weight:600;transition:background-color .16s ease,color .16s ease,border-color .16s ease,transform .08s ease;}
+  button:active{transform:translateY(1px);}
+  button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent-ink);outline-offset:2px;box-shadow:var(--focus);}
+  button:disabled{cursor:not-allowed;opacity:.48;transform:none;}
   .btn-primary{
-    background:var(--teal);color:#fff;padding:12px;font-size:14px;width:100%;
+    background:var(--teal);color:var(--color-on-dark);padding:12px;font-size:14px;width:100%;
     box-shadow:0 3px 10px rgba(31,138,122,.18);
   }
   .btn-ghost{
@@ -83,7 +93,7 @@
     padding:10px;font-size:13px;width:100%;
   }
   .btn-sm{padding:7px 13px;font-size:12.5px;background:var(--paper-deep);color:var(--ink);}
-  .btn-danger{background:#fff;color:var(--red);border:1.5px solid var(--red);}
+  .btn-danger{background:var(--color-paper);color:var(--red);border:1.5px solid var(--red);}
   .btn-row{display:flex;gap:8px;align-items:center;}
   .btn-row>*{flex:1;}
   .manual-tag{
@@ -102,7 +112,7 @@
 
   /* 答案串输入 */
   .ans-input{
-    font-family:'Noto Serif SC',serif;letter-spacing:2.5px;font-size:15px;
+    font-family:var(--font-body);letter-spacing:2.5px;font-size:15px;
     text-align:center;
   }
   /* 标准答案核对网格 */
@@ -116,10 +126,10 @@
   .opts{display:flex;flex-wrap:wrap;gap:2px;justify-content:center;}
   .opt{
     width:20px;height:20px;border-radius:50%;font-size:10px;font-weight:700;
-    border:1.2px solid var(--line);background:#fff;color:var(--mute);
+    border:1.2px solid var(--line);background:var(--color-paper);color:var(--mute);
     display:flex;align-items:center;justify-content:center;cursor:pointer;
   }
-  .opt.on{background:var(--teal);color:#fff;border-color:var(--teal);}
+  .opt.on{background:var(--teal);color:var(--color-on-dark);border-color:var(--teal);}
   .qcell.tf .opt.on{background:var(--green);border-color:var(--green);}
 
   /* 文件上传 */
@@ -136,7 +146,7 @@
     border-radius:8px;padding:8px 10px;margin-top:10px;font-size:12.5px;
   }
   .filechip .fx{
-    background:var(--blue);color:#fff;border-radius:5px;width:22px;height:22px;
+    background:var(--blue);color:var(--color-on-dark);border-radius:5px;width:22px;height:22px;
     display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex:none;
   }
   .setup-check{
@@ -147,7 +157,7 @@
   .setup-check b{font-weight:800;}
   .class-upload-list{display:grid;gap:10px;margin-top:8px;}
   .class-upload-card{
-    border:1px solid var(--line);border-radius:10px;background:#fff;padding:10px;
+    border:1px solid var(--line);border-radius:10px;background:var(--color-paper);padding:10px;
   }
   .class-upload-head{
     display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;margin-bottom:8px;
@@ -155,20 +165,20 @@
   .class-upload-head input{font-size:13px;font-weight:700;padding:8px 10px;}
   .class-upload-actions{display:flex;gap:6px;align-items:center;}
   .class-upload-actions .btn-sm{white-space:nowrap;padding:7px 10px;}
-  .class-upload-card .drop{padding:14px 10px;background:#fbfcfa;}
+  .class-upload-card .drop{padding:14px 10px;background:var(--color-panel);}
   .class-upload-card .drop .di{font-size:22px;}
   .class-upload-card .drop .dt{font-size:13px;}
   .class-upload-card .class-count{font-size:11px;color:var(--mute);margin-top:6px;}
   .class-add-row{display:grid;grid-template-columns:1fr;gap:8px;margin-top:10px;}
   .class-tabs{display:flex;flex-wrap:wrap;gap:7px;margin:0 0 12px;}
   .class-tab{
-    background:#fff;border:1px solid var(--line);color:var(--mute);
+    background:var(--color-paper);border:1px solid var(--line);color:var(--mute);
     padding:7px 11px;border-radius:999px;font-size:12px;font-weight:800;
   }
-  .class-tab.on{background:var(--teal);border-color:var(--teal);color:#fff;}
+  .class-tab.on{background:var(--teal);border-color:var(--teal);color:var(--color-on-dark);}
   .class-summary-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:12px;}
   .class-summary-card{
-    border:1px solid var(--line);border-radius:10px;background:#fff;padding:10px;
+    border:1px solid var(--line);border-radius:10px;background:var(--color-paper);padding:10px;
   }
   .class-summary-card .name{font-weight:900;font-size:13px;margin-bottom:4px;}
   .class-summary-card .meta{font-size:11px;color:var(--mute);line-height:1.5;}
@@ -185,11 +195,11 @@
   /* 学生结果 */
   .stu-item{
     display:flex;align-items:center;gap:9px;padding:10px 12px;
-    border:1px solid var(--line);border-radius:9px;margin-bottom:7px;background:#fff;
+    border:1px solid var(--line);border-radius:9px;margin-bottom:7px;background:var(--color-paper);
   }
   .stu-item .nm{font-weight:700;font-size:13.5px;flex:1;}
   .stu-item .sub{font-size:11px;color:var(--mute);}
-  .stu-item .sc{font-family:'Noto Serif SC',serif;font-weight:900;font-size:17px;}
+  .stu-item .sc{font-family:var(--font-body);font-weight:700;font-size:17px;}
   .badge{font-size:10.5px;padding:2px 7px;border-radius:18px;font-weight:700;}
   .badge.done{background:rgba(47,158,115,.14);color:var(--green);}
   .badge.todo{background:var(--paper-deep);color:var(--mute);}
@@ -209,10 +219,10 @@
   /* 统计 */
   .score-hero{
     text-align:center;padding:22px 16px;
-    background:linear-gradient(160deg,var(--teal),#2a7d8e);
+    background:var(--ink);
     color:var(--paper);border-radius:14px;margin-bottom:11px;
   }
-  .score-hero .big{font-family:'Noto Serif SC',serif;font-size:50px;font-weight:900;line-height:1;}
+  .score-hero .big{font-family:var(--font-display);font-size:50px;font-weight:700;line-height:1;}
   .score-hero .of{font-size:13px;color:rgba(255,255,255,.72);}
   .score-hero .lbl{font-size:12px;margin-top:5px;}
   .stat-row{display:flex;gap:8px;margin-bottom:11px;}
@@ -220,12 +230,12 @@
     flex:1;background:var(--card);border:1px solid var(--line);
     border-radius:10px;padding:11px 6px;text-align:center;
   }
-  .stat-box .v{font-family:'Noto Serif SC',serif;font-size:21px;font-weight:900;}
+  .stat-box .v{font-family:var(--font-display);font-size:21px;font-weight:700;}
   .stat-box .k{font-size:10px;color:var(--mute);margin-top:2px;}
 
   .qbar{margin-bottom:10px;}
   .qbar .top{display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;}
-  .qbar .top .pct{font-weight:700;font-family:'Noto Serif SC',serif;}
+  .qbar .top .pct{font-weight:700;font-family:var(--font-body);}
   .track{height:11px;background:var(--paper-deep);border-radius:6px;overflow:hidden;}
   .fill{height:100%;border-radius:6px;}
   .qbar .meta{font-size:10.5px;color:var(--mute);margin-top:3px;}
@@ -246,12 +256,12 @@
   }
   .flow button .step-no{
     width:24px;height:24px;border-radius:7px;border:1px solid var(--line);
-    display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;background:#fff;
+    display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;background:var(--color-paper);
   }
   .flow button .step-title{display:block;font-size:13px;font-weight:900;color:var(--ink);line-height:1.25;}
   .flow button .step-sub{display:block;font-size:10.5px;margin-top:4px;color:var(--mute);font-weight:600;line-height:1.35;}
   .flow button.on{border-color:rgba(31,138,122,.46);background:rgba(31,138,122,.08);}
-  .flow button.on .step-no{background:var(--teal);color:#fff;border-color:var(--teal);}
+  .flow button.on .step-no{background:var(--teal);color:var(--color-on-dark);border-color:var(--teal);}
   .talk-grid{display:grid;grid-template-columns:1fr;gap:12px;}
   @media (min-width:900px){
     body{padding-bottom:0;}
@@ -281,38 +291,400 @@
   nav button.on{color:var(--teal);}
   .toast{
     position:fixed;bottom:90px;left:50%;transform:translateX(-50%);
-    background:var(--ink);color:#fff;padding:10px 18px;border-radius:22px;
+    background:var(--ink);color:var(--color-on-dark);padding:10px 18px;border-radius:22px;
     font-size:12.5px;font-weight:500;z-index:200;opacity:0;pointer-events:none;
     transition:.2s;white-space:nowrap;max-width:90vw;
   }
   .toast.show{opacity:1;transform:translateX(-50%) translateY(-5px);}
   .divider{height:1px;background:var(--line);margin:12px 0;}
   .mini{font-size:11px;color:var(--mute);margin-top:6px;line-height:1.55;}
-  code{background:var(--paper-deep);padding:1px 5px;border-radius:4px;font-size:11.5px;font-family:'Noto Serif SC',serif;}
+  code{background:var(--paper-deep);padding:1px 5px;border-radius:4px;font-size:11.5px;font-family:var(--font-body);}
   .seg{display:flex;background:var(--paper-deep);border-radius:8px;padding:3px;margin-bottom:11px;}
   .seg button{flex:1;padding:7px;font-size:12px;background:none;color:var(--mute);color:var(--mute);border-radius:6px;}
-  .seg button.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.08);}
+  .seg button.on{background:var(--color-paper);color:var(--ink);box-shadow:var(--shadow-panel);}
 
   /* 填涂卡相关 */
   .omr-canvas{
-    width:100%;background:#fff;border:1px solid var(--line);border-radius:8px;
+    width:100%;background:var(--color-paper);border:1px solid var(--line);border-radius:8px;
     margin-top:8px;display:block;
   }
   .roster-list{
     max-height:180px;overflow-y:auto;border:1px solid var(--line);
-    border-radius:8px;padding:6px;margin-top:8px;background:#fff;
+    border-radius:8px;padding:6px;margin-top:8px;background:var(--color-paper);
   }
   .roster-row{
     display:flex;gap:8px;font-size:12px;padding:3px 4px;border-bottom:1px dashed var(--paper-deep);
   }
   .roster-row:last-child{border-bottom:none;}
-  .roster-row .rid{color:var(--mute);font-family:'Noto Serif SC',serif;min-width:60px;}
+  .roster-row .rid{color:var(--mute);font-family:var(--font-body);min-width:60px;}
   .roster-row .rnm{font-weight:600;}
   .preview-box{
-    background:#fff;border:1px solid var(--line);border-radius:8px;
+    background:var(--color-paper);border:1px solid var(--line);border-radius:8px;
     padding:8px;margin-top:8px;text-align:center;
   }
   .preview-box svg{max-width:100%;height:auto;}
+
+  /* 参考图视觉重构：保留现有功能与四区工作流 */
+  ::selection{background:var(--color-accent-soft);color:var(--color-ink);}
+  html{scrollbar-color:var(--color-line-strong) var(--color-canvas);}
+  body{background:var(--color-canvas);padding:0;font-family:var(--font-body);color:var(--color-text);}
+  .app-shell{display:grid;grid-template-columns:var(--layout-sidebar-width) minmax(0,1fr);grid-template-rows:var(--layout-header-height) minmax(0,1fr);min-height:100dvh;}
+  .app-header{
+    grid-column:1/-1;grid-row:1;position:sticky;top:0;z-index:80;height:var(--layout-header-height);padding:0 var(--space-2xl);
+    background:var(--color-panel);border-bottom:var(--rule-thin) solid var(--color-line);color:var(--color-ink);
+  }
+  .app-header .topbar{height:100%;max-width:none;margin:0;display:flex;align-items:center;justify-content:space-between;gap:var(--space-xl);}
+  .brand{display:flex !important;align-items:center;gap:var(--space-sm);font-family:var(--font-body) !important;font-size:inherit !important;font-weight:500 !important;}
+  .brand-mark{font-size:42px;line-height:1;color:var(--color-accent);}
+  .brand-copy{display:block;}
+  .brand-line{display:flex;align-items:center;gap:var(--space-xs);line-height:1;}
+  .brand-name{font-size:var(--text-xl);font-weight:700;letter-spacing:-.025em;color:var(--color-ink);}
+  .brand-subtitle{display:block;margin-top:var(--space-xs);font-size:var(--text-xs);line-height:1;color:var(--color-muted);font-weight:400;white-space:nowrap;}
+  .version-badge{padding:1px 4px;border:var(--rule-thin) solid var(--color-line-soft);border-radius:var(--radius-sm);background:transparent;color:var(--color-subtle);font-size:8px;font-weight:400;line-height:1.2;opacity:.72;}
+  .header-status{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border:var(--rule-thin) solid var(--color-line-soft);border-radius:var(--radius-pill);background:var(--color-info-surface);color:var(--color-muted);font-size:11px;font-weight:400;white-space:nowrap;}
+  .header-status i{color:var(--color-accent);font-size:14px;}
+
+  .sidebar{grid-column:1;grid-row:2;position:sticky;top:var(--layout-header-height);height:calc(100dvh - var(--layout-header-height));padding:var(--space-xl) var(--space-sm);background:var(--color-sidebar);border-right:var(--rule-thin) solid var(--color-line);}
+  .sidebar .flow{position:relative;display:flex;flex-direction:column;gap:var(--space-xs);margin:0;padding:0;}
+  .sidebar .flow::before{content:"";position:absolute;left:31px;top:30px;bottom:30px;width:1px;background:var(--color-line);}
+  .sidebar .flow button{position:relative;width:100%;min-height:76px;padding:13px 10px 13px 58px;border:var(--rule-thin) solid transparent;border-radius:var(--radius-md);background:transparent;color:var(--color-muted);display:block;text-align:left;}
+  .sidebar .flow button:hover{background:var(--color-accent-soft);}
+  .sidebar .flow button.on{border-color:var(--color-info-border);background:var(--color-accent-soft);}
+  .sidebar .flow button.on::before{content:"";position:absolute;left:-1px;top:10px;bottom:10px;width:1px;background:var(--color-accent);}
+  .sidebar .flow button:focus-visible{outline:1px solid var(--color-info-border);outline-offset:1px;box-shadow:none;}
+  .sidebar .flow .step-no{position:absolute;z-index:1;left:18px;top:25px;width:24px;height:24px;border:var(--rule-thin) solid var(--color-line);border-radius:50%;background:var(--color-panel);color:var(--color-muted);display:flex;align-items:center;justify-content:center;font-size:var(--text-xs);font-weight:600;font-variant-numeric:tabular-nums;}
+  .sidebar .flow button.on .step-no{background:var(--color-accent);color:var(--color-on-dark);border-color:var(--color-accent);}
+  .sidebar .flow .step-title{font-size:var(--text-md);font-weight:600;line-height:1.35;color:var(--color-text);white-space:nowrap;}
+  .sidebar .flow button.on .step-title{color:var(--color-accent-ink);}
+  .sidebar .flow .step-sub{display:block;margin-top:var(--space-xs);font-size:var(--text-xs);font-weight:400;line-height:1.4;color:var(--color-muted);white-space:nowrap;}
+
+  main{grid-column:2;grid-row:2;width:100%;max-width:none;min-width:0;margin:0;padding:var(--space-xl);background:var(--color-canvas);}
+  nav{display:none !important;}
+  .card{border:var(--rule-thin) solid var(--color-line-soft);border-radius:var(--radius-lg);padding:var(--space-xl);box-shadow:none;margin-bottom:var(--space-md);}
+  .card h2{font-family:var(--font-display);font-size:var(--text-lg);font-weight:600;margin-bottom:var(--space-md);}
+  .card h2 .num{background:var(--color-accent);border-radius:var(--radius-sm);font-weight:600;}
+  label{font-size:var(--text-sm);font-weight:500;margin-bottom:var(--space-xs);}
+  input[type=text],input[type=number],textarea{min-height:var(--control-height);padding:8px 10px;border:var(--rule-thin) solid var(--color-line-strong);border-radius:var(--radius-sm);outline:2px solid transparent;outline-offset:1px;background:var(--color-paper);font-size:var(--text-md);}
+  input:hover,textarea:hover{border-color:var(--color-accent);}
+  input:focus,textarea:focus{border-color:var(--color-focus);outline:2px solid var(--color-focus);outline-offset:1px;box-shadow:var(--focus-ring);}
+  .field{margin-bottom:var(--space-xl);}
+  .btn-primary,.btn-secondary,.btn-link{display:inline-flex;align-items:center;justify-content:center;gap:var(--space-xs);white-space:nowrap;}
+  .btn-primary{height:var(--control-height);min-height:var(--control-height);background:var(--color-accent);color:var(--color-on-dark);padding:8px 14px;font-size:var(--text-md);font-weight:600;box-shadow:none;}
+  .btn-primary:hover{background:var(--color-accent-hover);}
+  .btn-primary:active{background:var(--color-accent-active);}
+  .btn-ghost{min-height:var(--control-height);background:transparent;color:var(--color-accent-ink);border:var(--rule-thin) solid var(--color-line-strong);padding:8px 12px;font-size:var(--text-md);}
+  .btn-ghost:hover,.btn-secondary:hover{border-color:var(--color-accent);background:var(--color-accent-soft);}
+  .btn-secondary{height:var(--control-height);min-height:var(--control-height);padding:8px 14px;background:var(--color-panel);color:var(--color-text);border:var(--rule-thin) solid var(--color-line-strong);font-size:var(--text-md);}
+  .btn-secondary:active{background:var(--color-accent-soft-hover);}
+  .btn-link{padding:6px 0;background:transparent;color:var(--color-accent-ink);font-size:var(--text-sm);font-weight:500;text-decoration:none;}
+  .btn-link:hover{text-decoration:underline;text-underline-offset:4px;}
+  .setup-check{border:var(--rule-thin) solid var(--color-line);background:var(--color-accent-soft);border-radius:var(--radius-md);font-size:var(--text-xs);color:var(--color-muted);}
+  .mini{font-size:var(--text-xs);line-height:1.6;color:var(--color-muted);}
+  .seg{display:flex;gap:var(--space-xs);padding:0;border:0;border-radius:0;background:transparent;margin:0;}
+  .seg button{min-height:var(--control-height-compact);padding:6px 9px;border:var(--rule-thin) solid var(--color-line-strong);border-radius:var(--radius-sm);background:var(--color-panel);font-size:var(--text-sm);font-weight:500;white-space:nowrap;}
+  .seg button:hover{border-color:var(--color-accent);background:var(--color-accent-soft);}
+  .seg button.on{border-color:var(--color-accent);background:var(--color-accent-soft);box-shadow:none;color:var(--color-accent-ink);}
+
+  .tpl-workbench{display:grid;grid-template-columns:minmax(356px,.82fr) minmax(500px,1.3fr);gap:var(--space-md);background:transparent;overflow:visible;}
+  .tpl-settings,.tpl-preview-panel,.tpl-actions,.task-panel,.task-actions,.results-intro{border:var(--rule-thin) solid var(--color-line-soft);border-radius:var(--radius-lg);background:var(--color-panel);box-shadow:none;}
+  .tpl-settings{padding:0 28px 24px;}
+  .tpl-heading,.task-heading{display:block;margin:0 calc(0px - var(--panel-padding)) var(--space-xl);padding:24px var(--panel-padding) 20px;border-bottom:var(--rule-thin) solid var(--color-line);}
+  .tpl-heading h1,.task-heading h1,.results-heading h1{font-family:var(--font-display);font-size:var(--text-display);font-weight:700;letter-spacing:-.03em;line-height:1.2;color:var(--color-ink);overflow-wrap:anywhere;min-width:0;}
+  .tpl-heading p,.task-heading p,.results-heading p{margin-top:var(--space-xs);max-width:68ch;color:var(--color-muted);font-size:var(--text-sm);line-height:1.65;}
+  .setting-label{display:flex;align-items:center;gap:var(--space-xs);font-size:var(--text-md);font-weight:600;color:var(--color-text);}
+  .setting-label i{font-size:18px;color:var(--color-accent-ink);}
+  .count-label{justify-content:flex-start;margin-bottom:var(--space-sm);}
+  .tpl-total{margin-left:auto;padding:0;color:var(--color-muted);font-size:var(--text-xs);font-weight:400;font-variant-numeric:tabular-nums;white-space:nowrap;}
+  .question-count-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:var(--space-md);}
+  .question-count-grid .field{margin-bottom:var(--space-xs);}
+  .question-count-grid input{height:var(--control-height);text-align:center;font-size:var(--text-md);font-variant-numeric:tabular-nums;}
+  .per-page-field{margin-top:28px;margin-bottom:var(--space-lg);padding-top:24px;border-top:var(--rule-thin) solid var(--color-line);}
+  .per-page-field>label{margin-bottom:var(--space-sm);}
+  .per-page-field .mini{margin-top:var(--space-sm);}
+  .per-page-field .seg button{flex:1;}
+  .tpl-note{display:flex;align-items:flex-start;gap:var(--space-xs);padding-top:var(--space-md);border-top:var(--rule-thin) solid var(--color-line);color:var(--color-muted);font-size:var(--text-xs);line-height:1.6;}
+  .tpl-note i{margin-top:2px;color:var(--color-accent-ink);font-size:var(--text-md);}
+  .tpl-settings .setup-check{margin-top:var(--space-md);padding:12px 14px;color:var(--color-muted);}
+  .tpl-preview-panel{min-width:0;overflow:hidden;background:var(--color-panel);}
+  .preview-heading{display:flex;justify-content:space-between;align-items:center;min-height:56px;margin:0;padding:0 20px;border-bottom:var(--rule-thin) solid var(--color-line);color:var(--color-text);font-size:var(--text-md);font-weight:600;}
+  .preview-heading>span:first-child{display:flex;align-items:center;gap:var(--space-xs);}
+  .preview-heading i{font-size:18px;color:var(--color-accent-ink);}
+  .preview-heading span:last-child{padding:7px 11px;border-radius:var(--radius-sm);background:var(--color-workspace);color:var(--color-muted);font-size:var(--text-xs);font-weight:400;font-variant-numeric:tabular-nums;}
+  .tpl-preview-panel .preview-box{margin:0;padding:20px;max-width:none;min-height:520px;background:var(--color-workspace);border:0;border-radius:0;box-shadow:none;display:flex;align-items:center;justify-content:center;}
+  .tpl-preview-panel .preview-box svg{display:block;width:100%;height:auto;max-height:520px;margin:auto;background:var(--color-paper);border:var(--rule-thin) solid var(--color-line);border-radius:2px;box-shadow:var(--shadow-paper);}
+  .tpl-actions{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:var(--space-lg);padding:6px 12px;}
+  .tpl-download-links{display:flex;align-items:center;gap:var(--space-xl);}
+  .tpl-actions-primary{display:flex;align-items:center;gap:var(--space-sm);}
+  .tpl-next{width:auto;min-height:var(--control-height);white-space:nowrap;}
+
+  /* 共用任务工作台：第 2—4 页复用第一页的视觉语言 */
+  .task-workbench{width:100%;max-width:none;margin:0;}
+  .task-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(360px,.86fr);gap:var(--space-md);align-items:start;}
+  .task-grid.grade-task-grid{grid-template-columns:minmax(320px,.72fr) minmax(440px,1.28fr);}
+  #modeOMR.grade-task-grid{display:grid !important;}
+  .task-panel{min-width:0;padding:0 var(--panel-padding) var(--space-xl);overflow:hidden;}
+  .panel-heading{display:flex;align-items:center;justify-content:space-between;gap:var(--space-md);min-height:58px;margin:0 calc(0px - var(--panel-padding)) var(--space-lg);padding:0 var(--panel-padding);border-bottom:var(--rule-thin) solid var(--color-line);}
+  .panel-heading h2{display:flex;align-items:center;gap:var(--space-xs);margin:0;font-family:var(--font-display);font-size:var(--text-lg);font-weight:600;color:var(--color-text);}
+  .panel-heading h2 i{font-size:19px;color:var(--color-accent-ink);}
+  .panel-meta{color:var(--color-muted);font-size:var(--text-xs);font-variant-numeric:tabular-nums;}
+  .task-section+.task-section{margin-top:var(--space-xl);padding-top:var(--space-xl);border-top:var(--rule-thin) solid var(--color-line);}
+  .task-section-title{display:flex;align-items:center;gap:var(--space-xs);margin-bottom:var(--space-sm);font-size:var(--text-md);font-weight:600;color:var(--color-text);}
+  .task-section-title i{font-size:18px;color:var(--color-accent-ink);}
+  .task-actions{display:flex;align-items:center;justify-content:space-between;gap:var(--space-xl);margin-top:var(--space-md);padding:16px 20px;}
+  .task-actions-end{display:flex;align-items:center;gap:var(--space-sm);margin-left:auto;}
+  .task-actions .btn-primary,.task-actions .btn-secondary{width:auto;min-height:var(--control-height);}
+  .task-panel .row{gap:var(--space-md);}
+  .task-panel .field{margin-bottom:var(--space-lg);}
+  .task-panel textarea{min-height:112px;}
+  .task-panel .btn-block{width:100%;}
+  .task-panel .seg{margin-bottom:var(--space-sm);}
+  .answer-mode-tabs{padding:3px;background:var(--color-workspace);border-radius:var(--radius-md);}
+  .answer-mode-tabs button{border-color:transparent;background:transparent;}
+  .answer-mode-tabs button.on{border-color:var(--color-info-border);background:var(--color-panel);}
+  .answer-mode-panel{padding-top:var(--space-xs);}
+  .answer-mode-panel[hidden]{display:none !important;}
+  #keySaved:not(:empty),#smartKeyStatus:not(:empty){padding-top:var(--space-xs);}
+  #keyPreview{padding-bottom:var(--space-xl);}
+  #keyPreview .key-grid{max-height:520px;overflow:auto;padding-right:var(--space-2xs);}
+  #keyPreview .mini:last-child{margin-top:var(--space-md);}
+  .key-empty{display:flex;min-height:260px;align-items:center;justify-content:center;text-align:center;color:var(--color-muted);font-size:var(--text-sm);line-height:1.7;}
+  .key-empty i{display:block;margin-bottom:var(--space-sm);font-size:30px;color:var(--color-accent);}
+  #keyPreview[style*="display: block"]~.key-empty{display:none;}
+
+  .drop{display:flex;min-height:128px;flex-direction:column;align-items:center;justify-content:center;border:var(--rule-thin) dashed var(--color-line-strong);border-radius:var(--radius-md);padding:22px 16px;background:var(--color-workspace);transition:background-color var(--dur-base) var(--ease-out),border-color var(--dur-base) var(--ease-out);}
+  .drop:hover{border-color:var(--color-accent);background:var(--color-accent-soft);}
+  .drop .di{display:flex;align-items:center;justify-content:center;width:36px;height:36px;margin:0 0 var(--space-xs);border-radius:var(--radius-md);background:var(--color-accent-soft);color:var(--color-accent-ink);font-size:22px;}
+  .drop .dt{font-size:var(--text-md);font-weight:600;color:var(--color-text);}
+  .drop .ds{margin-top:var(--space-2xs);font-size:var(--text-xs);color:var(--color-muted);}
+  .class-upload-list{gap:var(--space-sm);margin-top:var(--space-sm);}
+  .class-upload-card{padding:var(--space-md);border-color:var(--color-line);border-radius:var(--radius-md);background:var(--color-workspace);}
+  .class-upload-card .drop{min-height:112px;background:var(--color-panel);}
+  .class-upload-card .drop:hover{background:var(--color-accent-soft);}
+  .class-upload-head{margin-bottom:var(--space-sm);}
+  .class-upload-card .class-count{margin-top:var(--space-xs);color:var(--color-muted);}
+  .class-add-row{margin-top:var(--space-sm);}
+  .roster-list{max-height:220px;border-color:var(--color-line);border-radius:var(--radius-md);}
+  .filechip{border:var(--rule-thin) solid var(--color-line);background:var(--color-accent-soft);}
+  .filechip.reminder{border-color:var(--color-reminder-border);background:var(--color-reminder-surface);color:var(--color-text);}
+  .filechip.reminder .fx{background:var(--color-warning);}
+  .filechip.error{border-color:var(--color-error-border);background:var(--color-error-surface);color:var(--color-danger);}
+  .filechip.error .fx{background:var(--color-danger);}
+  .setup-check{display:flex;align-items:flex-start;min-height:44px;padding:11px 13px;line-height:1.65;}
+  .setup-check b{flex:none;margin-right:4px;font-weight:600;color:var(--color-text);}
+  .setup-check.ok{border-color:var(--color-line);background:var(--color-accent-soft);}
+  .setup-check.warn{border-color:oklch(84% .035 78);background:oklch(97% .02 78);}
+  .setup-check.bad{border-color:oklch(84% .045 30);background:oklch(97% .022 30);}
+
+  .results-intro{margin-bottom:var(--space-md);overflow:hidden;}
+  .results-heading{padding:24px var(--panel-padding) 20px;border-bottom:var(--rule-thin) solid var(--color-line);}
+  .results-intro .setup-check{margin:var(--space-md) var(--panel-padding) var(--space-xl);}
+  #statsBody>.class-tabs{margin-bottom:var(--space-md);}
+  .card{border-radius:var(--radius-lg);padding:var(--space-xl);box-shadow:var(--shadow-panel);}
+  .card h2{gap:var(--space-xs);font-size:var(--text-lg);font-weight:600;}
+  .card h2 .num{width:auto;height:auto;border:0;border-radius:0;background:transparent;color:var(--color-accent-ink);font-size:19px;}
+  .card h2 .num i{display:block;}
+  .qcell{border-color:var(--color-line);border-radius:var(--radius-sm);background:var(--color-workspace);}
+  .qcell.tf{background:var(--color-accent-soft);}
+  .opt{border-radius:var(--radius-sm);}
+  .stu-item{border-color:var(--color-line);border-radius:var(--radius-md);padding:11px 12px;background:var(--color-panel);}
+  .stu-item:hover{border-color:var(--color-line-strong);background:var(--color-workspace);}
+  .class-tab{border-color:var(--color-line-strong);background:var(--color-panel);color:var(--color-muted);font-weight:500;}
+  .class-tab.on{border-color:var(--color-accent);background:var(--color-accent-soft);color:var(--color-accent-ink);}
+  .score-hero{padding:28px 20px;border:var(--rule-thin) solid var(--color-line);border-radius:var(--radius-lg);background:var(--color-accent-soft);color:var(--color-accent-ink);}
+  .score-hero .big{font-size:48px;font-weight:700;}
+  .score-hero .of{color:var(--color-muted);}
+  .stat-box{border-color:var(--color-line);border-radius:var(--radius-md);box-shadow:none;}
+  .track{background:var(--color-workspace);}
+  .empty{min-height:180px;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+  .empty .ico{color:var(--color-accent);}
+  .btn-sm{min-height:var(--control-height-small);padding:6px 10px;border:var(--rule-thin) solid var(--color-line-strong);border-radius:var(--radius-sm);background:var(--color-panel);color:var(--color-text);font-size:var(--text-sm);font-weight:500;}
+  .btn-sm:hover{border-color:var(--color-accent);background:var(--color-accent-soft);}
+  .btn-danger{border-color:oklch(78% .055 30);background:transparent;color:var(--color-danger);}
+  .btn-danger:hover{border-color:var(--color-danger);background:oklch(97% .022 30);}
+
+  /* 第 2—4 页收紧：保持第一页工作台外观不变 */
+  #view-key .task-panel,#view-grade .task-panel,#view-stats .results-intro,
+  #view-key .task-actions,#view-grade .task-actions,#view-stats .task-actions,
+  #view-grade .card,#view-stats .card{
+    border-color:var(--color-line-soft);box-shadow:none;
+  }
+  #view-key .task-panel,#view-grade .task-panel{padding-bottom:var(--space-lg);}
+  #view-key .task-heading,#view-grade .task-heading{
+    margin-bottom:var(--space-lg);padding-top:20px;padding-bottom:16px;
+  }
+  #view-stats .results-heading{padding-top:20px;padding-bottom:16px;}
+  #view-key .task-section+.task-section,#view-grade .task-section+.task-section{
+    margin-top:var(--space-lg);padding-top:var(--space-lg);
+  }
+  #view-key .task-panel .field,#view-grade .task-panel .field{margin-bottom:var(--space-md);}
+  #view-key input[type=text],#view-key input[type=number],#view-key textarea,
+  #view-grade input[type=text],#view-grade input[type=number],#view-grade textarea,
+  #view-stats input[type=text],#view-stats input[type=number],#view-stats textarea{
+    min-height:var(--control-height);height:var(--control-height);padding:8px 10px;
+  }
+  #view-key textarea,#view-grade textarea,#view-stats textarea{height:auto;min-height:96px;}
+  #view-key .btn-primary,#view-key .btn-secondary,#view-key .btn-ghost,
+  #view-grade .btn-primary,#view-grade .btn-secondary,#view-grade .btn-ghost,
+  #view-stats .btn-primary,#view-stats .btn-secondary,#view-stats .btn-ghost{
+    min-height:var(--control-height);height:var(--control-height);padding:8px 14px;
+  }
+  #view-key .seg button,#view-grade .seg button,#view-stats .seg button{
+    min-height:var(--control-height-compact);padding:6px 9px;
+  }
+  #view-key .btn-sm,#view-grade .btn-sm,#view-stats .btn-sm{
+    min-height:36px;padding:6px 10px;
+  }
+  #view-key .task-actions,#view-grade .task-actions,#view-stats .task-actions{
+    min-height:56px;margin-top:var(--space-sm);padding:6px 12px;gap:var(--space-md);
+  }
+  #view-key .task-actions-end,#view-grade .task-actions-end,#view-stats .task-actions-end{gap:var(--space-xs);}
+  #view-key .key-empty{min-height:132px;padding-top:var(--space-md);padding-bottom:var(--space-md);}
+  #view-key .key-empty i{margin-bottom:var(--space-xs);font-size:26px;}
+  #view-grade .drop{min-height:76px;padding:8px 10px;}
+  #view-grade .drop .di{width:24px;height:24px;margin-bottom:3px;font-size:16px;}
+  #view-grade .drop .ds{margin-top:2px;font-size:11px;}
+  #view-grade .class-upload-card{padding:10px;border-color:var(--color-line-soft);}
+  #view-grade .class-upload-card .drop{min-height:64px;padding:6px 8px;}
+  #view-grade .class-upload-head{margin-bottom:var(--space-xs);}
+  #view-grade .class-upload-card .class-count{margin-top:6px;}
+  #view-grade .class-add-row{margin-top:var(--space-xs);}
+  #view-grade .panel-heading{min-height:52px;margin-bottom:var(--space-md);}
+  #sidReviewBox{margin-top:var(--space-md);}
+  .sid-review-card{overflow:hidden;border:var(--rule-thin) solid var(--color-info-border);border-radius:var(--radius-lg);background:var(--color-panel);}
+  .sid-review-card>summary{display:flex;min-height:52px;align-items:center;justify-content:space-between;gap:var(--space-md);padding:0 var(--space-lg);cursor:pointer;list-style:none;color:var(--color-text);font-size:var(--text-md);font-weight:600;}
+  .sid-review-card>summary::-webkit-details-marker{display:none;}
+  .sid-review-card>summary>span:first-child{display:flex;align-items:center;gap:var(--space-xs);}
+  .sid-review-card>summary>span:first-child i{color:var(--color-accent-ink);font-size:19px;}
+  .sid-review-summary{display:flex;align-items:center;gap:var(--space-xs);color:var(--color-muted);font-size:var(--text-xs);font-weight:400;}
+  .sid-review-card[open] .sid-review-summary i{transform:rotate(180deg);}
+  .sid-review-list{display:grid;gap:var(--space-sm);padding:var(--space-md);border-top:var(--rule-thin) solid var(--color-line);background:var(--color-workspace);}
+  .sid-review-item{display:grid;grid-template-columns:minmax(300px,400px) minmax(0,1fr);gap:var(--space-lg);padding:var(--space-md);border:var(--rule-thin) solid var(--color-line-soft);border-radius:var(--radius-md);background:var(--color-panel);}
+  .sid-review-evidence{min-width:0;}
+  .sid-review-evidence-label{display:flex;align-items:center;justify-content:space-between;gap:var(--space-sm);margin-bottom:6px;color:var(--color-text);font-size:var(--text-xs);font-weight:600;}
+  .sid-review-evidence-label span{color:var(--color-muted);font-weight:400;}
+  .sid-review-visual{display:flex;min-height:132px;align-items:center;justify-content:center;overflow:hidden;border:var(--rule-thin) solid var(--color-line);border-radius:var(--radius-sm);background:var(--color-paper);}
+  .sid-review-visual img{display:block;width:100%;height:132px;object-fit:contain;}
+  .sid-review-evidence .mini{margin-top:6px;}
+  .sid-review-placeholder{display:flex;flex-direction:column;align-items:center;gap:var(--space-xs);color:var(--color-muted);font-size:var(--text-xs);}
+  .sid-review-placeholder i{font-size:24px;color:var(--color-accent);}
+  .sid-review-main{min-width:0;}
+  .sid-review-meta{display:flex;gap:var(--space-sm);color:var(--color-muted);font-size:var(--text-xs);}
+  .sid-review-meta span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .sid-review-current{display:flex;align-items:center;gap:var(--space-sm);margin:7px 0 10px;color:var(--color-muted);font-size:var(--text-xs);}
+  .sid-review-current code{padding:3px 7px;border:var(--rule-thin) solid var(--color-line);background:var(--color-workspace);font-size:var(--text-md);letter-spacing:.08em;}
+  .sid-review-current>span{color:var(--color-muted);font-size:var(--text-xs);}
+  .sid-candidates{display:flex;flex-wrap:wrap;gap:var(--space-xs);}
+  .sid-candidate{display:grid;grid-template-columns:auto auto auto;align-items:center;gap:7px;min-height:36px;padding:6px 9px;border:var(--rule-thin) solid var(--color-info-border);border-radius:var(--radius-sm);background:var(--color-info-surface);color:var(--color-text);font-size:var(--text-xs);}
+  .sid-candidate:hover{border-color:var(--color-accent);background:var(--color-accent-soft-hover);}
+  .sid-candidate strong{font-size:var(--text-sm);font-variant-numeric:tabular-nums;}
+  .sid-candidate span{color:var(--color-text);}
+  .sid-candidate small{color:var(--color-muted);}
+  .sid-review-actions{display:flex;align-items:center;gap:var(--space-xs);margin-top:var(--space-sm);}
+  .sid-review-actions input{width:210px;height:var(--control-height);min-height:var(--control-height);}
+  .sid-review-actions .btn-secondary{height:var(--control-height);min-height:var(--control-height);}
+  .sid-review-deferred{display:flex;align-items:center;justify-content:space-between;gap:var(--space-md);padding:8px 10px;border:var(--rule-thin) solid var(--color-line-soft);border-radius:var(--radius-sm);background:var(--color-panel);color:var(--color-muted);font-size:var(--text-xs);}
+  .auto-corrected-tag{display:inline-flex;margin-left:6px;padding:1px 5px;border-radius:var(--radius-pill);background:var(--color-info-surface);color:var(--color-accent-ink);font-size:9px;font-weight:500;vertical-align:middle;}
+  #view-key .setup-check,#view-grade .setup-check,#view-stats .setup-check{
+    min-height:40px;padding:9px 11px;border-color:var(--color-info-border);background:var(--color-info-surface);
+  }
+  #view-key .setup-check.ok,#view-grade .setup-check.ok,#view-stats .setup-check.ok{
+    border-color:var(--color-info-border);background:var(--color-info-surface);
+  }
+  #view-key .setup-check.warn,#view-grade .setup-check.warn,#view-stats .setup-check.warn,
+  #view-key .setup-check.reminder,#view-grade .setup-check.reminder,#view-stats .setup-check.reminder{
+    border-color:var(--color-reminder-border);background:var(--color-reminder-surface);
+  }
+  #view-key .setup-check.bad,#view-grade .setup-check.bad,#view-stats .setup-check.bad{
+    border-color:var(--color-error-border);background:var(--color-error-surface);
+  }
+  #view-stats .results-intro{margin-bottom:var(--space-sm);}
+  #view-stats .results-intro .setup-check{margin:var(--space-sm) var(--panel-padding) var(--space-md);}
+  #view-stats .empty{min-height:96px;padding:12px 10px;}
+  #view-stats .empty .ico{margin-bottom:4px;font-size:26px;}
+  #view-stats .empty-title{margin-bottom:3px;color:var(--color-text);font-size:var(--text-md);font-weight:600;}
+  #view-stats .empty-copy{color:var(--color-muted);font-size:var(--text-xs);}
+  #view-stats .card,#view-grade .card{padding:var(--space-lg);margin-bottom:var(--space-sm);}
+  #view-stats .score-hero{padding:20px 16px;margin-bottom:var(--space-xs);}
+  #view-stats .stat-row{margin-bottom:var(--space-xs);}
+  #view-stats .stat-box{padding:9px 6px;}
+  #view-grade .stu-item,#view-stats .stu-item,#view-stats .stat-box,
+  #view-stats .class-summary-card{border-color:var(--color-line-soft);}
+
+  @media (max-width:1080px){
+    .app-shell{grid-template-columns:184px minmax(0,1fr);}
+    main{padding:var(--space-md);}
+    .tpl-workbench{grid-template-columns:minmax(300px,.8fr) minmax(390px,1.2fr);}
+    .tpl-settings{padding-left:20px;padding-right:20px;}
+    .tpl-heading{margin-left:-20px;margin-right:-20px;padding-left:20px;padding-right:20px;}
+    .tpl-actions{align-items:flex-end;}
+    .tpl-actions-primary{flex-wrap:wrap;justify-content:flex-end;}
+    .task-grid,.task-grid.grade-task-grid{grid-template-columns:minmax(0,1fr);}
+  }
+  @media (max-width:760px){
+    .app-shell{display:block;}
+    .app-header{position:static;height:64px;padding:0 var(--space-md);}
+    .brand-mark{font-size:34px;}
+    .brand-name{font-size:18px;}
+    .brand-subtitle{margin-top:6px;font-size:10px;}
+    .header-status{padding:5px 8px;font-size:10px;}
+    .header-status span{display:none;}
+    .sidebar{position:static;height:auto;padding:0 var(--space-xs);border-right:0;border-bottom:var(--rule-thin) solid var(--color-line);}
+    .sidebar .flow{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;}
+    .sidebar .flow::before{display:none;}
+    .sidebar .flow button{min-height:48px;padding:12px 4px;text-align:center;border-radius:0;}
+    .sidebar .flow button.on::before{left:12px;right:12px;top:auto;bottom:0;width:auto;height:1px;}
+    .sidebar .flow .step-no,.sidebar .flow .step-sub{display:none;}
+    .sidebar .flow .step-title{font-size:11px;white-space:nowrap;}
+    main{padding:var(--space-sm);}
+    .tpl-workbench{display:block;}
+    .tpl-settings,.tpl-preview-panel,.tpl-actions{margin-bottom:var(--space-sm);}
+    .tpl-settings{padding:0 var(--space-md) var(--space-md);}
+    .tpl-heading{margin:0 calc(0px - var(--space-md)) var(--space-lg);padding:20px var(--space-md) var(--space-md);}
+    .tpl-heading h1{font-size:24px;}
+    .tpl-heading p{font-size:11.5px;}
+    .tpl-preview-panel .preview-box{min-height:0;padding:var(--space-sm);}
+    .tpl-preview-panel .preview-box svg{max-height:none;}
+    .tpl-actions{display:block;padding:10px 12px;}
+    .tpl-download-links{margin-bottom:var(--space-md);gap:var(--space-lg);}
+    .tpl-actions-primary{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:var(--space-xs);}
+    .tpl-actions-primary>*{width:100%;}
+    .task-workbench{max-width:none;}
+    .task-grid{display:block;}
+    #modeOMR.grade-task-grid{display:block !important;}
+    .task-panel{margin-bottom:var(--space-sm);padding:0 var(--space-md) var(--space-md);}
+    .task-heading{margin:0 calc(0px - var(--space-md)) var(--space-lg);padding:20px var(--space-md) var(--space-md);}
+    .task-heading h1,.results-heading h1{font-size:24px;}
+    .task-heading p,.results-heading p{font-size:11.5px;}
+    .panel-heading{margin-left:calc(0px - var(--space-md));margin-right:calc(0px - var(--space-md));padding:0 var(--space-md);}
+    .task-actions{display:block;padding:var(--space-md);}
+    .task-actions>.btn-link{margin-bottom:var(--space-sm);}
+    .task-actions-end{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:var(--space-xs);}
+    .task-actions-end>*{width:100% !important;}
+    #view-grade .task-actions,#view-stats .task-actions{display:flex;align-items:center;justify-content:space-between;}
+    #view-grade .task-actions>.btn-link,#view-stats .task-actions>.btn-link{margin-bottom:0;}
+    #view-grade .task-actions-end,#view-stats .task-actions-end{display:flex;width:auto;}
+    #view-grade .task-actions-end>*,#view-stats .task-actions-end>*{width:auto !important;}
+    .results-heading{padding:20px var(--space-md) var(--space-md);}
+    .results-intro .setup-check{margin:var(--space-md);}
+    .sid-review-card>summary{padding:0 var(--space-md);}
+    .sid-review-summary>span{display:none;}
+    .sid-review-item{grid-template-columns:1fr;padding:var(--space-sm);}
+    .sid-review-visual,.sid-review-visual img{min-height:112px;height:112px;}
+    .sid-review-actions{align-items:stretch;flex-wrap:wrap;}
+    .sid-review-actions input{width:100%;}
+  }
+  @media (max-width:390px){
+    .sidebar .flow .step-title{font-size:10.5px;}
+    .question-count-grid{gap:var(--space-xs);}
+    .seg{gap:var(--space-2xs);}
+    .seg button{padding-left:5px;padding-right:5px;}
+    .tpl-actions-primary{grid-template-columns:1fr;}
+    .task-panel .row{display:block;}
+    #view-key .task-actions-end{grid-template-columns:auto minmax(0,1fr);}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{scroll-behavior:auto !important;transition-duration:.01ms !important;animation-duration:.01ms !important;animation-iteration-count:1 !important;}
+  }
   #printArea{display:none;}
   @media print{
     @page{ size:A4 portrait; margin:0; }
@@ -370,176 +742,243 @@
       transform:translateX(-50%); background:#fff; padding:0 8px;
       font-size:9px; color:#888; font-family:sans-serif;
     }
-    nav, header{ display:none !important; }
+    nav, .sidebar, .app-header{ display:none !important; }
   }
 </style>
 </head>
 <body>
-
-<header>
+<div class="app-shell">
+<header class="app-header">
   <div class="topbar">
-    <div class="brand"><span class="seal">批</span>客观题批改助手 <span class="version-badge">V14</span></div>
-    <div class="header-status">本地批改 · 数据保存在当前浏览器</div>
+    <div class="brand">
+      <i class="ph ph-scan brand-mark" aria-hidden="true"></i>
+      <span class="brand-copy">
+        <span class="brand-line"><span class="brand-name">题卡快批</span><span class="version-badge">V14</span></span>
+        <span class="brand-subtitle">客观题答题卡批改工具</span>
+      </span>
+    </div>
+    <div class="header-status"><i class="ph ph-check-circle" aria-hidden="true"></i><span>所有数据保存在本机浏览器中</span></div>
   </div>
 </header>
 
-<main>
+<aside class="sidebar">
   <div class="flow" aria-label="批改流程">
     <button class="on" data-v="tpl" onclick="go('tpl',this)">
       <span class="step-no">1</span>
-      <span><span class="step-title">模板</span><span class="step-sub">设置题量与样式</span></span>
+      <span><span class="step-title">创建答题卡</span><span class="step-sub">设置题量与版式</span></span>
     </button>
     <button data-v="key" onclick="go('key',this)">
       <span class="step-no">2</span>
-      <span><span class="step-title">答案</span><span class="step-sub">录入标准答案</span></span>
+      <span><span class="step-title">录入答案</span><span class="step-sub">填写标准答案</span></span>
     </button>
     <button data-v="grade" onclick="go('grade',this)">
       <span class="step-no">3</span>
-      <span><span class="step-title">批改</span><span class="step-sub">上传名册与答题卡</span></span>
+      <span><span class="step-title">批改答题卡</span><span class="step-sub">上传并识别</span></span>
     </button>
     <button data-v="stats" onclick="go('stats',this)">
       <span class="step-no">4</span>
-      <span><span class="step-title">讲评</span><span class="step-sub">查看成绩与错题</span></span>
+      <span><span class="step-title">查看结果</span><span class="step-sub">成绩与错题</span></span>
     </button>
   </div>
+</aside>
 
-  <!-- ============ 视图1：标准答案 ============ -->
+<main>
+
+  <!-- ============ 视图2：录入答案 ============ -->
   <section class="view" id="view-key">
-    <div class="card">
-      <h2><span class="num">2</span>标准答案</h2>
-      <div class="row">
-        <div class="field">
-          <label>判断题每题分数</label>
-          <input type="number" id="scoreTF" value="1" min="0" step="0.5">
-        </div>
-        <div class="field">
-          <label>选择题每题分数</label>
-          <input type="number" id="scoreChoice" value="2" min="0" step="0.5">
-        </div>
-      </div>
-      <div class="field">
-        <label>粘贴整份标准答案（可选）</label>
-        <textarea id="keyPasteArea" rows="4" placeholder="例：1. F 2. F 3. T 4. F 5. T&#10;6. C 7. D 8. B 9. D 10. D"></textarea>
-        <button class="btn-ghost" style="margin-top:8px;" onclick="applyPastedKey()">智能识别并填入答案</button>
-        <p class="mini" id="smartKeyStatus"></p>
-      </div>
-      <div class="field">
-        <label>判断题正确答案（按顺序，对→T，错→F）</label>
-        <input type="text" id="keyTF" class="ans-input" placeholder="例：TTFFTTFF">
-      </div>
-      <div class="field">
-        <label>选择题正确答案（按顺序）</label>
-        <input type="text" id="keyChoice" class="ans-input" placeholder="例：ABCDDCBAAB CDDCBBAABB">
-      </div>
-      <button class="btn-primary" onclick="saveKey()">保存标准答案</button>
-      <p class="mini" id="keySaved"></p>
-      <div class="setup-check" data-setup-check></div>
-    </div>
+    <div class="task-workbench">
+      <div class="task-grid">
+        <div class="task-panel">
+          <div class="task-heading">
+            <h1>录入标准答案</h1>
+            <p>按题目顺序填写正确答案与分值，保存后用于自动批改。</p>
+          </div>
 
-    <div class="card" id="keyPreview" style="display:none;">
-      <h2><span class="num">2</span>核对识别结果</h2>
-      <p class="mini" id="keyHint"></p>
-      <div class="key-grid" id="keyGrid"></div>
-      <p class="mini">点格子可手动修改单题。改完点上方保存。</p>
+          <div class="task-section">
+            <div class="task-section-title"><i class="ph ph-calculator" aria-hidden="true"></i>设置每题分值</div>
+            <div class="row">
+              <div class="field">
+                <label for="scoreTF">判断题每题分数</label>
+                <input type="number" id="scoreTF" value="1" min="0" step="0.5">
+              </div>
+              <div class="field">
+                <label for="scoreChoice">选择题每题分数</label>
+                <input type="number" id="scoreChoice" value="2" min="0" step="0.5">
+              </div>
+            </div>
+          </div>
+
+          <div class="task-section answer-entry-section">
+            <div class="task-section-title"><i class="ph ph-check-square-offset" aria-hidden="true"></i>录入标准答案</div>
+            <div class="seg answer-mode-tabs" role="tablist" aria-label="标准答案录入方式" onkeydown="handleAnswerModeKey(event)">
+              <button class="on" id="answerModeQuick" role="tab" aria-selected="true" aria-controls="answerQuickPanel" onclick="setAnswerEntryMode('quick')">快速导入</button>
+              <button id="answerModeManual" role="tab" aria-selected="false" aria-controls="answerManualPanel" onclick="setAnswerEntryMode('manual')">手动录入</button>
+            </div>
+
+            <div class="answer-mode-panel" id="answerQuickPanel" role="tabpanel" aria-labelledby="answerModeQuick">
+              <div class="field">
+                <label for="keyPasteArea">粘贴整份标准答案</label>
+                <textarea id="keyPasteArea" rows="4" placeholder="例：1. F 2. F 3. T 4. F 5. T&#10;6. C 7. D 8. B 9. D 10. D"></textarea>
+                <button class="btn-secondary btn-block" style="margin-top:8px;" onclick="applyPastedKey()"><i class="ph ph-sparkle" aria-hidden="true"></i>智能识别并填入答案</button>
+                <p class="mini" id="smartKeyStatus"></p>
+              </div>
+            </div>
+
+            <div class="answer-mode-panel" id="answerManualPanel" role="tabpanel" aria-labelledby="answerModeManual" hidden>
+              <div class="field">
+                <label for="keyTF">判断题正确答案（按顺序，对 → T，错 → F）</label>
+                <input type="text" id="keyTF" class="ans-input" placeholder="例：TTFFTTFF">
+              </div>
+              <div class="field">
+                <label for="keyChoice">选择题正确答案（按顺序）</label>
+                <input type="text" id="keyChoice" class="ans-input" placeholder="例：ABCDDCBAAB CDDCBBAABB">
+              </div>
+            </div>
+
+            <p class="mini" id="keySaved"></p>
+            <div class="setup-check" data-setup-check></div>
+          </div>
+        </div>
+
+        <div>
+          <div class="task-panel" id="keyPreview" style="display:none;">
+            <div class="panel-heading">
+              <h2><i class="ph ph-list-checks" aria-hidden="true"></i>核对识别结果</h2>
+              <span class="panel-meta">点选可修正</span>
+            </div>
+            <p class="mini" id="keyHint"></p>
+            <div class="key-grid" id="keyGrid"></div>
+            <p class="mini">点选答案可手动修改单题，修改后请重新保存。</p>
+          </div>
+          <div class="task-panel key-empty">
+            <div><i class="ph ph-list-checks" aria-hidden="true"></i>保存标准答案后，可在这里逐题核对识别结果。</div>
+          </div>
+        </div>
+      </div>
+      <div class="task-actions">
+        <button class="btn-link" onclick="go('tpl')"><i class="ph ph-arrow-left" aria-hidden="true"></i>返回创建答题卡</button>
+        <div class="task-actions-end">
+          <button class="btn-secondary" onclick="saveKey()"><i class="ph ph-floppy-disk" aria-hidden="true"></i>仅保存</button>
+          <button class="btn-primary" onclick="saveKeyAndContinue()">保存并进入批改答题卡<i class="ph ph-arrow-right" aria-hidden="true"></i></button>
+        </div>
+      </div>
     </div>
   </section>
 
-  <!-- ============ 视图2：批改 ============ -->
+  <!-- ============ 视图3：批改答题卡 ============ -->
   <section class="view" id="view-grade">
-    <div class="card">
-      <h2><span class="num">3</span>上传批改</h2>
-      <div id="modeOMR">
-        <label>学号-姓名名册</label>
-        <div class="seg" style="margin-bottom:8px;">
-          <button class="on" id="rosterTabXlsx" onclick="setRosterTab('xlsx')">上传 Excel</button>
-          <button id="rosterTabPaste" onclick="setRosterTab('paste')">直接粘贴</button>
-        </div>
-
-        <div id="rosterTabXlsxPanel">
-          <div class="drop" style="padding:14px 10px;" onclick="document.getElementById('rosterInput').click()">
-            <span class="di" style="font-size:22px;">☷</span>
-            <div class="dt" style="font-size:13px;" id="rosterCount">点这里上传名册（.xlsx / .xls）</div>
-            <div class="ds">第一列学号，第二列姓名；首行可为表头</div>
+    <div class="task-workbench">
+      <div class="task-grid grade-task-grid" id="modeOMR">
+        <div class="task-panel">
+          <div class="task-heading">
+            <h1>上传答题卡并识别</h1>
+            <p>先准备学生名册，再按班级上传答题卡图片或 PDF 进行识别批改。</p>
           </div>
-          <input type="file" id="rosterInput" accept=".xlsx,.xls" style="display:none" onchange="handleRosterFile(this.files[0])">
+          <div class="task-section-title"><i class="ph ph-address-book" aria-hidden="true"></i>准备学生名册</div>
+          <div class="seg">
+            <button class="on" id="rosterTabXlsx" onclick="setRosterTab('xlsx')">上传 Excel</button>
+            <button id="rosterTabPaste" onclick="setRosterTab('paste')">直接粘贴</button>
+          </div>
+
+          <div id="rosterTabXlsxPanel">
+            <div class="drop" onclick="document.getElementById('rosterInput').click()">
+              <span class="di"><i class="ph ph-file-xls" aria-hidden="true"></i></span>
+              <div class="dt" id="rosterCount">点这里上传名册（.xlsx / .xls）</div>
+              <div class="ds">第一列学号，第二列姓名；首行可为表头</div>
+            </div>
+            <input type="file" id="rosterInput" accept=".xlsx,.xls" style="display:none" onchange="handleRosterFile(this.files[0])">
+          </div>
+
+          <div id="rosterTabPastePanel" style="display:none;">
+            <textarea id="rosterPasteArea" rows="6" placeholder="每行一名学生，学号和姓名之间用空格、逗号或制表符分隔。例如：&#10;001 张三&#10;002 李四&#10;003 王五"></textarea>
+            <button class="btn-secondary btn-block" style="margin-top:8px;" onclick="handleRosterPaste()">导入粘贴内容</button>
+          </div>
+
+          <div id="rosterPreview"></div>
+          <div class="setup-check" data-setup-check style="margin-top:var(--space-md);"></div>
         </div>
 
-        <div id="rosterTabPastePanel" style="display:none;">
-          <textarea id="rosterPasteArea" rows="6" placeholder="每行一名学生，学号和姓名之间用空格、逗号或制表符分隔。例如：&#10;001 张三&#10;002 李四&#10;003 王五"></textarea>
-          <div style="height:8px;"></div>
-          <button class="btn-sm" style="width:100%;" onclick="handleRosterPaste()">导入粘贴内容</button>
+        <div class="task-panel">
+          <div class="panel-heading">
+            <h2><i class="ph ph-scan" aria-hidden="true"></i>按班级上传答题卡</h2>
+            <span class="panel-meta">图片 / PDF</span>
+          </div>
+          <p class="mini">每个班级单独上传图片或 PDF；PDF 每页会作为一份答题卡批改。</p>
+          <div id="classUploadBox"></div>
+          <div id="fileStatus"></div>
         </div>
-
-        <div id="rosterPreview"></div>
-
-        <div style="height:10px;"></div>
-        <div class="setup-check" data-setup-check></div>
-        <div style="height:10px;"></div>
-        <label>按班级上传学生答题卡</label>
-        <div class="mini">每个班级单独上传图片或 PDF。PDF 每页会作为一份答题卡批改。</div>
-        <div id="classUploadBox"></div>
       </div>
-
-      <div id="fileStatus"></div>
+      <div id="sidReviewBox"></div>
+      <div id="gradeResultBox"></div>
+      <div class="task-actions">
+        <button class="btn-link" onclick="go('key')"><i class="ph ph-arrow-left" aria-hidden="true"></i>返回录入答案</button>
+        <div class="task-actions-end">
+          <button class="btn-primary" onclick="go('stats')">查看成绩与错题<i class="ph ph-arrow-right" aria-hidden="true"></i></button>
+        </div>
+      </div>
     </div>
-    <div id="gradeResultBox"></div>
   </section>
 
   <!-- ============ 视图5：填涂卡模板 ============ -->
   <section class="view active" id="view-tpl">
-    <div class="card">
-      <h2><span class="num">1</span>填涂卡模板</h2>
-      <p class="mini" style="margin-bottom:8px;">
-        这是标准化的填涂答题卡，四角的黑方块用于扫描后自动定位，<b>不要遮挡或裁掉</b>。<br>
-        点下方按钮可直接打印（A4 自动排版）。
-      </p>
-
-      <div class="field">
-        <label for="tplTitle">答题卡标题</label>
-        <input type="text" id="tplTitle" maxlength="40" value="答题卡" oninput="setTemplateTitle()" placeholder="例：七下数学第三单元测验">
-        <p class="mini">打印在每张答题卡顶部，用来区分不同考试或练习。</p>
-      </div>
-
-      <div class="field">
-        <label>题目数量</label>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+    <div class="tpl-workbench">
+      <div class="tpl-settings" aria-label="答题卡参数设置">
+        <div class="tpl-heading">
           <div>
-            <label for="tplTFCount" style="font-size:11px;color:var(--mute);margin-bottom:3px;">判断题</label>
+            <h1>设置答题卡</h1>
+            <p>设置题目数量与打印版式，然后生成可打印的答题卡。</p>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="setting-label" for="tplTitle"><i class="ph ph-clipboard-text" aria-hidden="true"></i>答题卡标题</label>
+          <input type="text" id="tplTitle" maxlength="40" value="答题卡" oninput="setTemplateTitle()" placeholder="例：七下数学第三单元测验">
+        </div>
+
+        <div class="setting-label count-label"><i class="ph ph-list-numbers" aria-hidden="true"></i>题目数量 <span class="tpl-total" id="tplTotalCount">共 28 题</span></div>
+        <div class="question-count-grid">
+          <div class="field">
+            <label for="tplTFCount">判断题</label>
             <input type="number" id="tplTFCount" min="0" max="80" step="1" value="8" oninput="setTemplateCounts()" placeholder="可填 0">
           </div>
-          <div>
-            <label for="tplChoiceCount" style="font-size:11px;color:var(--mute);margin-bottom:3px;">选择题</label>
+          <div class="field">
+            <label for="tplChoiceCount">选择题</label>
             <input type="number" id="tplChoiceCount" min="0" max="120" step="1" value="20" oninput="setTemplateCounts()" placeholder="可填 0">
           </div>
         </div>
-        <p class="mini" id="tplCountHint">模板可先按题量生成；标准答案稍后再录入也可以。</p>
+        <p class="mini" id="tplCountHint">判断题 8 题，选择题 20 题，共 28 题。</p>
+
+        <div class="field per-page-field">
+          <label class="setting-label"><i class="ph ph-printer" aria-hidden="true"></i>打印版式</label>
+          <div class="seg" aria-label="每页答题卡数量">
+            <button id="ppBtn1" onclick="setPerPage(1)">1 张</button>
+            <button class="on" id="ppBtn2" onclick="setPerPage(2)">2 张</button>
+            <button id="ppBtn4" onclick="setPerPage(4)">4 张</button>
+            <button id="ppBtn6" onclick="setPerPage(6)">6 张</button>
+            <button id="ppBtn8" onclick="setPerPage(8)">8 张</button>
+          </div>
+          <p class="mini" id="ppHint">A4 每页 2 张，打印后沿裁切线分开。</p>
+        </div>
+
+        <p class="tpl-note"><i class="ph ph-info" aria-hidden="true"></i>四角定位点用于自动识别，打印和裁切时请完整保留。</p>
         <div class="setup-check" data-setup-check></div>
       </div>
 
-      <div class="field">
-        <label>每页 A4 排几张答题卡（节省纸张）</label>
-        <div class="seg">
-          <button id="ppBtn1" onclick="setPerPage(1)">1张</button>
-          <button class="on" id="ppBtn2" onclick="setPerPage(2)">2张</button>
-          <button id="ppBtn4" onclick="setPerPage(4)">4张</button>
-          <button id="ppBtn6" onclick="setPerPage(6)">6张</button>
-          <button id="ppBtn8" onclick="setPerPage(8)">8张</button>
-        </div>
-        <p class="mini" id="ppHint">默认 2 张/页，适合日常批量打印；打印后裁开，再扫描裁开后的单张答题卡上传。</p>
+      <div class="tpl-preview-panel">
+        <div class="preview-heading"><span><i class="ph ph-eye" aria-hidden="true"></i>答题卡预览</span><span id="tplPreviewMeta">A4 · 每页 2 张</span></div>
+        <div class="preview-box" id="tplPreview"></div>
       </div>
 
-      <div class="preview-box" id="tplPreview"></div>
-      <div style="height:10px;"></div>
-      <button class="btn-primary" onclick="printTemplate()">打印模板</button>
-      <div style="height:8px;"></div>
-      <button class="btn-ghost" onclick="downloadTemplateDocx()">下载 Word 模板 (.docx)</button>
-      <div style="height:8px;"></div>
-      <button class="btn-ghost" onclick="downloadTemplateSVG()">下载 SVG 模板</button>
-      <p class="mini" style="margin-top:8px;">
-        模板含：7 位学号填涂区 + 判断题 + 选择题，统一使用长方框填涂，2B 笔横向一笔涂满即可。<br>
-        流程：选择每页数量 → 下载/打印 → 裁开 → 学生填涂 → 扫描裁开后的单张或多页 PDF 上传。
-      </p>
-      <p class="mini" style="margin-top:10px;text-align:center;color:var(--mute);">© WuYue · 客观题批改助手</p>
+      <div class="tpl-actions">
+        <div class="tpl-download-links" aria-label="其他下载格式">
+          <button class="btn-link" onclick="downloadTemplateDocx()"><i class="ph ph-file-doc" aria-hidden="true"></i>下载 Word 模板</button>
+          <button class="btn-link" onclick="downloadTemplateSVG()"><i class="ph ph-file-image" aria-hidden="true"></i>下载 SVG 模板</button>
+        </div>
+        <div class="tpl-actions-primary">
+          <button class="btn-secondary" onclick="printTemplate()"><i class="ph ph-printer" aria-hidden="true"></i>下载并打印答题卡</button>
+          <button class="btn-primary tpl-next" onclick="go('key')">下一步：录入答案<i class="ph ph-arrow-right" aria-hidden="true"></i></button>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -548,19 +987,34 @@
     <div id="listBody"></div>
   </section>
 
-  <!-- ============ 视图4：统计 ============ -->
+  <!-- ============ 视图4：查看结果 ============ -->
   <section class="view" id="view-stats">
-    <div class="setup-check" data-setup-check></div>
-    <div id="statsBody"></div>
+    <div class="task-workbench">
+      <div class="results-intro">
+        <div class="results-heading">
+          <h1>查看成绩与错题结果</h1>
+          <p>按班级查看成绩分布、每题得分率与高频错题，并导出成绩表。</p>
+        </div>
+        <div class="setup-check" data-setup-check></div>
+      </div>
+      <div id="statsBody"></div>
+      <div class="task-actions">
+        <button class="btn-link" onclick="go('grade')"><i class="ph ph-arrow-left" aria-hidden="true"></i>返回批改答题卡</button>
+        <div class="task-actions-end">
+          <button class="btn-secondary" onclick="go('tpl')">返回创建答题卡</button>
+        </div>
+      </div>
+    </div>
   </section>
 
 </main>
+</div>
 
 <nav>
-  <button class="on" data-v="tpl" onclick="go('tpl',this)"><span class="ic">📋</span>模板</button>
-  <button data-v="key" onclick="go('key',this)"><span class="ic">✎</span>答案</button>
-  <button data-v="grade" onclick="go('grade',this)"><span class="ic">✓</span>批改</button>
-  <button data-v="stats" onclick="go('stats',this)"><span class="ic">▦</span>讲评</button>
+  <button class="on" data-v="tpl" onclick="go('tpl',this)">创建答题卡</button>
+  <button data-v="key" onclick="go('key',this)">录入答案</button>
+  <button data-v="grade" onclick="go('grade',this)">批改答题卡</button>
+  <button data-v="stats" onclick="go('stats',this)">查看结果</button>
 </nav>
 
 <div id="printArea"></div>
@@ -591,7 +1045,8 @@ let DB={
   classes:[{id:'class_1', name:'班级1'}],
   statsClassId:'all',
   roster:[],    // [{id:'001', name:'张三'}, ...]
-  students:[]   // {id, classId, name, sid, tfAns, choiceAns, tfCorrect, choiceCorrect, score, totalScore, parseWarn, manualEdited, omrDebugImg?}
+  students:[],  // {id, classId, name, sid, sidStatus, tfAns, choiceAns, tfCorrect, choiceCorrect, score, totalScore, parseWarn, manualEdited, omrDebugImg?}
+  pendingSidReviews:[] // 学号存在歧义的答题卡；确认前不进入成绩统计
 };
 try{
   const d=JSON.parse(localStorage.getItem(DB_KEY));
@@ -628,6 +1083,13 @@ function ensureClassGroups(){
     if(!s.classId) s.classId=first;
     return s;
   });
+  if(!Array.isArray(DB.pendingSidReviews)) DB.pendingSidReviews=[];
+  DB.pendingSidReviews=DB.pendingSidReviews.map((item,idx)=>({
+    ...item,
+    id:item && item.id ? item.id : 'review_'+Date.now().toString(36)+'_'+idx,
+    classId:item && item.classId ? item.classId : first,
+    status:'needs_review'
+  }));
 }
 function normalizeTemplateTitle(value){
   const title=String(value==null?'':value).replace(/\s+/g,' ').trim().slice(0,40);
@@ -661,11 +1123,139 @@ function findRosterNameBySid(sid){
   });
   return loose ? (loose.name || '') : '';
 }
+function normalizeRosterName(value){
+  return String(value==null?'':value).replace(/[\s·•・]/g,'').trim();
+}
+function findRosterEntriesByName(value){
+  const name=normalizeRosterName(value);
+  if(!name) return [];
+  const roster=normalizedRoster();
+  const exact=roster.filter(r=>normalizeRosterName(r.name)===name);
+  if(exact.length) return exact;
+  if(name.length<2) return [];
+  return roster.filter(r=>normalizeRosterName(r.name).includes(name));
+}
+function normalizeRosterSid(value){
+  let sid=String(value==null?'':value).trim().replace(/\.0+$/,'');
+  if(!/^\d+$/.test(sid) || sid.length>7) return '';
+  return sid.padStart(7,'0');
+}
+function normalizedRoster(){
+  const seen=new Set();
+  return (DB.roster||[]).map(r=>({
+    sid:normalizeRosterSid(r.id),
+    rawSid:String(r.id||''),
+    name:String(r.name||'')
+  })).filter(r=>r.sid && !seen.has(r.sid) && seen.add(r.sid));
+}
+function scoreRosterCandidate(sid,evidence){
+  let earned=0, possible=0;
+  (evidence||[]).forEach((ev,pos)=>{
+    const weight=.55+.45*Math.max(0,Math.min(1,Number(ev.confidence)||0));
+    possible+=weight;
+    if(Array.isArray(ev.digitScores) && ev.digitScores.length){
+      const ranked=[...ev.digitScores].sort((a,b)=>b.score-a.score);
+      const match=ranked.find(item=>String(item.digit)===sid[pos]);
+      const top=Number(ranked[0]&&ranked[0].score)||0;
+      const middle=Number(ranked[Math.floor(ranked.length/2)]&&ranked[Math.floor(ranked.length/2)].score)||0;
+      const span=Math.max(8,top-middle);
+      const relative=match ? Math.max(0,Math.min(1,(Number(match.score)-middle+span*.12)/(span*1.12))) : 0;
+      earned+=weight*relative;
+    }else if(ev.top1 && String(ev.top1.digit)===sid[pos]) earned+=weight;
+    else if(ev.top2 && String(ev.top2.digit)===sid[pos]) earned+=weight*.58;
+  });
+  return possible ? Math.round(earned/possible*100) : 0;
+}
+function resolveSidWithRoster(recognizedSid,evidence,excludedSids){
+  const sid=String(recognizedSid||'').padEnd(7,'_').slice(0,7);
+  const excluded=excludedSids instanceof Set ? excludedSids : new Set(excludedSids||[]);
+  const roster=normalizedRoster().filter(r=>!excluded.has(r.sid));
+  const highPositions=[];
+  (evidence||[]).forEach((ev,pos)=>{
+    const digit=String(ev&&ev.value||'');
+    if(ev && ev.highConfidence && /^\d$/.test(digit) &&
+       (!roster.length || roster.some(r=>r.sid[pos]===digit))){
+      highPositions.push({pos,digit});
+    }
+  });
+  if(/^\d{7}$/.test(sid) && highPositions.length===7 &&
+     (!roster.length || roster.some(r=>r.sid===sid))){
+    return {status:'recognized',sid,candidates:[]};
+  }
+  const consistent=roster.filter(r=>highPositions.every(p=>r.sid[p.pos]===p.digit));
+  const allRanked=roster.map(r=>({
+    sid:r.sid,name:r.name,score:scoreRosterCandidate(r.sid,evidence),
+    consistent:consistent.includes(r)
+  })).sort((a,b)=>b.score-a.score || Number(b.consistent)-Number(a.consistent) || a.sid.localeCompare(b.sid));
+  const unique=consistent.length===1 ? allRanked.find(c=>c.sid===consistent[0].sid) : null;
+  const runnerUp=allRanked.find(c=>!unique || c.sid!==unique.sid);
+  const decisive=unique && unique.score>=70 && (!runnerUp || unique.score-runnerUp.score>=8);
+  if(highPositions.length>0 && decisive){
+    return {status:'roster_corrected',sid:unique.sid,candidates:allRanked.slice(0,3)};
+  }
+  return {status:'needs_review',sid,candidates:allRanked.slice(0,3)};
+}
+function migrateLegacyIncompleteStudents(){
+  ensureClassGroups();
+  const legacy=DB.students.filter(s=>!s.manualEdited && /[_?]/.test(String(s.sid||'')));
+  if(!legacy.length) return false;
+  const legacyIds=new Set(legacy.map(s=>s.id));
+  DB.students=DB.students.filter(s=>!legacyIds.has(s.id));
+  legacy.forEach(s=>{
+    const raw=String(s.sid||'').padEnd(7,'_').slice(0,7);
+    const evidence=[...raw].map((value,position)=>({
+      position,value,confidence:/^\d$/.test(value)?1:0,highConfidence:/^\d$/.test(value),
+      top1:/^\d$/.test(value)?{digit:Number(value),score:100}:null,top2:null
+    }));
+    const resolution=resolveSidWithRoster(raw,evidence);
+    if(resolution.status==='roster_corrected'){
+      s.rawSid=raw;s.sid=resolution.sid;s.sidStatus='roster_corrected';s.sidEvidence=evidence;
+      s.name=findRosterNameBySid(s.sid)||s.name;s.scanWarn='';s.unmatched=false;regrade(s);DB.students.push(s);
+    }else{
+      DB.pendingSidReviews.push({
+        id:'review_legacy_'+String(s.id),classId:s.classId,status:'needs_review',recognizedSid:raw,
+        sidEvidence:evidence,candidates:resolution.candidates||[],sidCropImg:'',tfAns:s.tfAns,
+        choiceAns:s.choiceAns,srcFile:s.srcFile||'历史识别记录',deferred:false,createdAt:new Date().toISOString()
+      });
+    }
+  });
+  save();
+  return true;
+}
+function reconcilePendingSidReviews(){
+  ensureClassGroups();
+  if(!DB.roster.length || !DB.pendingSidReviews.length) return 0;
+  const remaining=[];
+  let corrected=0;
+  const claimed=new Set(DB.students.map(s=>s.classId+'::'+normalizeRosterSid(s.sid)).filter(Boolean));
+  DB.pendingSidReviews.forEach(item=>{
+    const usedInClass=new Set([...claimed].filter(k=>k.startsWith(item.classId+'::')).map(k=>k.split('::')[1]));
+    const resolution=resolveSidWithRoster(item.recognizedSid,item.sidEvidence||[],usedInClass);
+    if(resolution.status==='roster_corrected'){
+      const r={sid:item.recognizedSid,sidEvidence:item.sidEvidence||[],tfAns:item.tfAns,chAns:item.choiceAns,debugImg:item.omrDebugImg||''};
+      const student=studentFromRecognition(r,{label:item.srcFile},item.classId,resolution);
+      const oldIndex=DB.students.findIndex(s=>s.classId===item.classId && s.sid===student.sid);
+      if(oldIndex>=0) DB.students[oldIndex]=mergeStudentRecord(DB.students[oldIndex],student);
+      else DB.students.push(student);
+      claimed.add(item.classId+'::'+student.sid);
+      corrected++;
+    }else{
+      item.candidates=resolution.candidates||[];
+      remaining.push(item);
+    }
+  });
+  DB.pendingSidReviews=remaining;
+  return corrected;
+}
 ensureClassGroups();
 function save(){
-  // 不保存 omrDebugImg（base64 太大），保留其他
+  // 核对图已压缩为轻量 JPEG；与识别结果一起保留，刷新后仍可人工校对。
   ensureClassGroups();
-  const slim={...DB, students:DB.students.map(s=>{const c={...s};delete c.omrDebugImg;return c;})};
+  const slim={
+    ...DB,
+    students:DB.students.map(s=>({...s})),
+    pendingSidReviews:DB.pendingSidReviews.map(item=>({...item}))
+  };
   try{ localStorage.setItem(DB_KEY,JSON.stringify(slim)); }catch(e){}
 }
 function mergeStudentRecord(oldS,newS){
@@ -694,7 +1284,7 @@ function go(v,btn){
   if(flowBtn) flowBtn.classList.add('on');
   if(v==='list') renderList();
   if(v==='stats') renderStats();
-  if(v==='grade'){ renderClassUploads(); renderGradeResult(); }
+  if(v==='grade'){ renderClassUploads(); renderSidReview(); renderGradeResult(); }
   if(v==='tpl') renderTemplatePreview();
   renderSetupCheck();
   window.scrollTo(0,0);
@@ -759,6 +1349,27 @@ function parseNumberedAnswerText(text){
   if(illegal.length) notes.push(`题型异常：第 ${illegal.join('、')} 题答案和自动判断的题型不一致`);
   return {ok:!missing.length && !illegal.length && !duplicates.length, keyTF, keyChoice, nTF, nCh, total:maxNo, notes};
 }
+function setAnswerEntryMode(mode){
+  const isQuick=mode!=='manual';
+  const quickBtn=document.getElementById('answerModeQuick');
+  const manualBtn=document.getElementById('answerModeManual');
+  const quickPanel=document.getElementById('answerQuickPanel');
+  const manualPanel=document.getElementById('answerManualPanel');
+  if(!quickBtn || !manualBtn || !quickPanel || !manualPanel) return;
+  quickBtn.classList.toggle('on',isQuick);
+  manualBtn.classList.toggle('on',!isQuick);
+  quickBtn.setAttribute('aria-selected',String(isQuick));
+  manualBtn.setAttribute('aria-selected',String(!isQuick));
+  quickPanel.hidden=!isQuick;
+  manualPanel.hidden=isQuick;
+}
+function handleAnswerModeKey(event){
+  if(event.key!=='ArrowLeft' && event.key!=='ArrowRight') return;
+  event.preventDefault();
+  const useManual=event.key==='ArrowRight';
+  setAnswerEntryMode(useManual?'manual':'quick');
+  document.getElementById(useManual?'answerModeManual':'answerModeQuick')?.focus();
+}
 function applyPastedKey(){
   const area=document.getElementById('keyPasteArea');
   const status=document.getElementById('smartKeyStatus');
@@ -802,61 +1413,67 @@ function getSetupStatus(scope='global'){
 
   if(scope==='tpl'){
     if(total<=0){
-      return {type:'bad', ok:false, label:'模板进度：', text:'请先设置判断题或选择题数量，至少保留一类题目。'};
+      return {type:'bad', ok:false, label:'当前设置：', text:'请设置判断题或选择题数量，至少保留一类题目。'};
     }
     if(mismatch){
-      return {type:'bad', ok:false, label:'模板进度：', text:`题量已调整为判断 ${counts.nTF} 题、选择 ${counts.nCh} 题，但标准答案数量还没同步。请进入「答案」页补齐或修改标准答案。`};
+      return {type:'bad', ok:false, label:'当前设置：', text:`题量已调整为判断 ${counts.nTF} 题、选择 ${counts.nCh} 题，但标准答案数量还没同步。请进入「录入答案」补齐或修改。`};
     }
     if(!hasKey){
-      return {type:'warn', ok:false, label:'模板进度：', text:`已设置判断 ${counts.nTF} 题、选择 ${counts.nCh} 题。请下载或打印答题卡；准备批改前，进入「答案」页录入标准答案。`};
+      return {type:'warn', ok:false, label:'当前设置：', text:`已设置判断 ${counts.nTF} 题、选择 ${counts.nCh} 题。请下载并打印答题卡；批改前录入标准答案。`};
     }
-    return {type:'ok', ok:true, label:'模板进度：', text:`已设置判断 ${counts.nTF} 题、选择 ${counts.nCh} 题。模板和标准答案已匹配，可以下载或打印答题卡。`};
+    return {type:'ok', ok:true, label:'当前设置：', text:`已设置判断 ${counts.nTF} 题、选择 ${counts.nCh} 题。题卡与标准答案已匹配，可以下载并打印。`};
   }
 
   if(scope==='key'){
     if(total<=0){
-      return {type:'bad', ok:false, label:'答案进度：', text:'请先进入「模板」页设置题目数量，再录入标准答案。'};
+      return {type:'bad', ok:false, label:'录入进度：', text:'请先进入「创建答题卡」设置题目数量，再录入标准答案。'};
     }
     if(!hasKey){
-      return {type:'warn', ok:false, label:'答案进度：', text:'请按题目顺序录入标准答案，保存后再进入「批改」页。'};
+      return {type:'warn', ok:false, label:'录入进度：', text:'请按题目顺序录入标准答案，保存后再进入「批改答题卡」。'};
     }
     if(mismatch){
-      return {type:'bad', ok:false, label:'答案进度：', text:'标准答案数量和模板题量不一致，请按题目顺序核对后再进入批改。'};
+      return {type:'bad', ok:false, label:'录入进度：', text:'标准答案数量和题卡题量不一致，请按题目顺序核对后再进入批改。'};
     }
-    return {type:'ok', ok:true, label:'答案进度：', text:'已录入标准答案。下一步请进入「批改」页，上传名册和学生答题卡。'};
+    return {type:'ok', ok:true, label:'录入进度：', text:'已录入标准答案。下一步进入「批改答题卡」，上传名册和学生答题卡。'};
   }
 
   if(scope==='grade'){
     if(total<=0){
-      return {type:'bad', ok:false, label:'批改进度：', text:'请先进入「模板」页设置题目数量。'};
+      return {type:'bad', ok:false, label:'批改进度：', text:'请先进入「创建答题卡」设置题目数量。'};
     }
     if(!hasKey){
-      return {type:'bad', ok:false, label:'批改进度：', text:'请先进入「答案」页录入标准答案，再上传学生答题卡。'};
+      return {type:'reminder', ok:false, label:'批改进度：', text:'请先进入「录入答案」保存标准答案，再上传学生答题卡。'};
     }
     if(mismatch){
-      return {type:'bad', ok:false, label:'批改进度：', text:'题目数量和标准答案数量不一致，请先回到「答案」页核对。'};
+      return {type:'bad', ok:false, label:'批改进度：', text:'题目数量和标准答案数量不一致，请先回到「录入答案」核对。'};
+    }
+    if((DB.pendingSidReviews||[]).length){
+      return {type:'reminder', ok:true, label:'批改进度：', text:`已有批改结果，另有 ${DB.pendingSidReviews.length} 张答题卡需要确认学号；确认后会自动计入成绩统计。`};
     }
     if(DB.students.length){
-      return {type:'ok', ok:true, label:'批改进度：', text:'已完成批改。下一步请进入「讲评」页查看成绩统计和错题清单。'};
+      return {type:'ok', ok:true, label:'批改进度：', text:'已完成批改。下一步进入「查看结果」，查看成绩统计和错题清单。'};
     }
     if(DB.roster.length){
       return {type:'ok', ok:true, label:'批改进度：', text:'标准答案和名册已准备好，请上传学生答题卡开始批改。'};
     }
-    return {type:'warn', ok:true, label:'批改进度：', text:'请先上传学生名册，再上传学生答题卡图片或 PDF。批改完成后，进入「讲评」页查看成绩和高频错题。'};
+    return {type:'warn', ok:true, label:'批改进度：', text:'请先上传学生名册，再上传学生答题卡图片或 PDF。批改完成后进入「查看结果」。'};
   }
 
   if(scope==='stats'){
-    if(DB.students.length){
-      return {type:'ok', ok:true, label:'讲评进度：', text:'这里汇总学生成绩、正确率和高频错题，可用于课堂讲评或导出成绩表。'};
+    if((DB.pendingSidReviews||[]).length){
+      return {type:'reminder', ok:!!DB.students.length, label:'结果状态：', text:`当前成绩不含 ${DB.pendingSidReviews.length} 张待确认学号的答题卡，请回到「批改答题卡」完成确认。`};
     }
-    return {type:'warn', ok:false, label:'讲评进度：', text:'还没有批改结果。请先进入「批改」页上传学生答题卡。'};
+    if(DB.students.length){
+      return {type:'ok', ok:true, label:'结果状态：', text:'这里汇总学生成绩、正确率和高频错题，可用于课堂讲评或导出成绩表。'};
+    }
+    return {type:'warn', ok:false, label:'结果状态：', text:'还没有批改结果。请先进入「批改答题卡」上传学生答题卡。'};
   }
 
   if(total<=0){
-    return {type:'bad', ok:false, label:'批改检查：', text:'请先在「模板」页填写题目数量。判断题或选择题至少有一类不能为 0。'};
+    return {type:'bad', ok:false, label:'批改检查：', text:'请先在「创建答题卡」填写题目数量。判断题或选择题至少有一类不能为 0。'};
   }
   if(!hasKey){
-    return {type:'warn', ok:false, label:'批改检查：', text:`模板已准备好：判断 ${counts.nTF} 题、选择 ${counts.nCh} 题。下一步请到「答案」页录入答案。`};
+    return {type:'warn', ok:false, label:'批改检查：', text:`题卡已准备好：判断 ${counts.nTF} 题、选择 ${counts.nCh} 题。下一步请到「录入答案」保存答案。`};
   }
   if(mismatch){
     return {type:'bad', ok:false, label:'批改检查：', text:`题目数量和标准答案数量对不上：模板是判断 ${counts.nTF} 题、选择 ${counts.nCh} 题；答案是判断 ${keyTF} 题、选择 ${keyCh} 题。请先改成一致，再上传学生答题卡。`};
@@ -887,8 +1504,9 @@ function validateOMRReady(){
   if(!status.ok){
     const fs=document.getElementById('fileStatus');
     if(fs){
-      fs.innerHTML=`<div class="filechip" style="background:rgba(220,90,66,.08);color:var(--red)">
-        <span class="fx" style="background:var(--red)">!</span>
+      const statusClass=status.type==='bad'?'error':'reminder';
+      fs.innerHTML=`<div class="filechip ${statusClass}">
+        <span class="fx"><i class="ph ${statusClass==='error'?'ph-warning-circle':'ph-info'}" aria-hidden="true"></i></span>
         <span style="flex:1">${status.text}</span></div>`;
     }
     toast(status.text);
@@ -909,14 +1527,14 @@ function saveKey(){
   const sCh=parseFloat(document.getElementById('scoreChoice').value)||0;
   const kTF=normalizeTF(document.getElementById('keyTF').value);
   const kCh=normalizeChoice(document.getElementById('keyChoice').value);
-  if(!kTF.length && !kCh.length){ toast('请至少录入一种题型的答案'); return; }
+  if(!kTF.length && !kCh.length){ toast('请至少录入一种题型的答案'); return false; }
   const tplCounts=getQCounts();
   const mismatch = tplCounts.nTF!==kTF.length || tplCounts.nCh!==kCh.length;
   if(mismatch){
     const ok=confirm(`标准答案数量和模板题量不一致。\n\n模板：判断 ${tplCounts.nTF} 题，选择 ${tplCounts.nCh} 题\n答案：判断 ${kTF.length} 题，选择 ${kCh.length} 题\n\n如果学生已经使用当前模板，请点“取消”并补齐答案；如果还没有发给学生，可点“确定”同步修改模板题量。`);
     if(!ok){
       toast('请先核对答案数量');
-      return;
+      return false;
     }
     DB.tplTFCount=kTF.length;
     DB.tplChoiceCount=kCh.length;
@@ -936,6 +1554,10 @@ function saveKey(){
     `✓ 已保存：判断 ${kTF.length} 题 × ${sTF} 分 ＋ 选择 ${kCh.length} 题 × ${sCh} 分 ＝ 总分 ${kTF.length*sTF+kCh.length*sCh}` +
     (stillMismatch ? `；注意：模板题量为判断 ${afterCounts.nTF} 题、选择 ${afterCounts.nCh} 题` : '');
   toast(stillMismatch ? '答案数量和模板题量不一致，请检查' : '标准答案已保存');
+  return true;
+}
+function saveKeyAndContinue(){
+  if(saveKey()) go('grade');
 }
 function renderKeyPreview(){
   if(!DB.saved){ document.getElementById('keyPreview').style.display='none'; return; }
@@ -1179,12 +1801,103 @@ function regrade(s){
 }
 
 /* ==================== 视图2：结果展示 ==================== */
+let sidReviewExpanded=false;
+function setSidReviewExpanded(open){ sidReviewExpanded=!!open; }
+function renderSidReview(){
+  const box=document.getElementById('sidReviewBox');
+  if(!box) return;
+  ensureClassGroups();
+  const items=DB.pendingSidReviews||[];
+  if(!items.length){ box.innerHTML=''; return; }
+  let html=`<details class="sid-review-card" ${sidReviewExpanded?'open':''} ontoggle="setSidReviewExpanded(this.open)">
+    <summary><span><i class="ph ph-identification-card" aria-hidden="true"></i>待确认学号（${items.length}）</span><span class="sid-review-summary">仅处理有歧义的答题卡 <i class="ph ph-caret-down" aria-hidden="true"></i></span></summary>
+    <div class="sid-review-list">`;
+  items.forEach(item=>{
+    const likely=item.candidates&&item.candidates[0];
+    if(item.deferred){
+      html+=`<div class="sid-review-deferred"><span>${htmlEscape(getClassName(item.classId))} · ${htmlEscape(item.recognizedSid||'_______')} · 已暂缓</span><button class="btn-sm" onclick="resumeSidReview('${item.id}')">继续处理</button></div>`;
+      return;
+    }
+    const reviewImage=item.nameCropImg||item.omrDebugImg||item.sidCropImg||'';
+    const reviewImageAlt=item.nameCropImg?'答题卡手写姓名栏':'答题卡识别核对图';
+    const evidenceHint=item.nameCropImg?'请先根据手写姓名选择名册学生；学号识别只用于缩小候选范围。':'这条记录生成于旧版本，重新上传后可直接显示手写姓名栏。';
+    html+=`<article class="sid-review-item" data-review-id="${item.id}">
+      <div class="sid-review-evidence">
+        <div class="sid-review-evidence-label">手写姓名栏 <span>主要核对依据</span></div>
+        <div class="sid-review-visual">${reviewImage?`<img src="${reviewImage}" alt="${reviewImageAlt}">`:`<div class="sid-review-placeholder"><i class="ph ph-scan" aria-hidden="true"></i>暂无姓名栏截图</div>`}</div>
+        <p class="mini">${evidenceHint}</p>
+      </div>
+      <div class="sid-review-main">
+        <div class="sid-review-meta"><span>${htmlEscape(getClassName(item.classId))}</span><span>${htmlEscape(item.srcFile||'答题卡')}</span></div>
+        <div class="sid-review-current">学号辅助识别 <code>${htmlEscape(item.recognizedSid||'_______')}</code>${likely?`<span>首选候选：${htmlEscape(likely.name)}</span>`:''}</div>
+        <div class="sid-candidates">${(item.candidates||[]).length?(item.candidates||[]).map(c=>`<button class="sid-candidate" onclick="confirmSidReview('${item.id}','${c.sid}')"><strong>${htmlEscape(c.sid)}</strong><span>${htmlEscape(c.name)}</span><small>${c.score} 分</small></button>`).join(''):'<span class="mini">名册中没有可靠候选，请手动输入。</span>'}</div>
+        <div class="sid-review-actions"><input type="text" id="nameManual_${item.id}" aria-label="手动输入学生姓名" placeholder="输入名册中的学生姓名"><button class="btn-secondary" onclick="confirmSidReview('${item.id}')">按姓名确认</button><button class="btn-link" onclick="deferSidReview('${item.id}')">暂不处理</button></div>
+      </div>
+    </article>`;
+  });
+  html+='</div></details>';
+  box.innerHTML=html;
+}
+function confirmSidReview(reviewId,sid){
+  ensureClassGroups();
+  const reviewIndex=DB.pendingSidReviews.findIndex(r=>r.id===reviewId);
+  const item=DB.pendingSidReviews[reviewIndex];
+  if(!item) return;
+  if(!sid){
+    const input=document.getElementById('nameManual_'+reviewId);
+    const enteredName=input ? String(input.value||'').trim() : '';
+    const matches=findRosterEntriesByName(enteredName);
+    if(!enteredName){ toast('请输入名册中的学生姓名'); return; }
+    if(!matches.length){ toast(`名册中没有“${enteredName}”，请核对姓名或直接点击候选学生`); return; }
+    if(matches.length>1){ toast(`名册中有 ${matches.length} 名学生匹配“${enteredName}”，请直接点击对应候选`); return; }
+    sid=matches[0].sid;
+  }
+  sid=normalizeRosterSid(sid);
+  if(!sid){ toast('未能从名册确定该学生，请重新选择'); return; }
+  const rosterName=findRosterNameBySid(sid);
+  if(DB.roster.length && !rosterName){ toast('当前名册中没有这个学号，请先核对名册'); return; }
+  const occupied=DB.students.find(s=>s.classId===item.classId && normalizeRosterSid(s.sid)===sid);
+  if(occupied){ toast(`学号 ${sid} 已绑定 ${occupied.name}，请先核对重复答题卡`); return; }
+  const r={
+    sid:item.recognizedSid,sidEvidence:item.sidEvidence||[],tfAns:item.tfAns,chAns:item.choiceAns,
+    debugImg:item.omrDebugImg||''
+  };
+  const student=studentFromRecognition(r,{label:item.srcFile},item.classId,{status:'confirmed',sid});
+  student.rawSid=item.recognizedSid;
+  student.rawName=rosterName||student.name;
+  student.confirmedAt=new Date().toISOString();
+  DB.students.push(student);
+  DB.pendingSidReviews=DB.pendingSidReviews.filter(r=>r.id!==reviewId);
+  const nextItem=DB.pendingSidReviews[reviewIndex] || DB.pendingSidReviews[reviewIndex-1] || null;
+  sidReviewExpanded=DB.pendingSidReviews.length>0;
+  save();
+  renderSidReview();renderClassUploads();renderGradeResult();renderList();renderStats();renderSetupCheck();
+  if(nextItem){
+    requestAnimationFrame(()=>{
+      const next=document.querySelector(`[data-review-id="${nextItem.id}"]`);
+      if(next) next.scrollIntoView({block:'nearest'});
+    });
+  }
+  toast(`已确认 ${sid}${rosterName?' · '+rosterName:''}，成绩统计已更新`);
+}
+function deferSidReview(reviewId){
+  const item=(DB.pendingSidReviews||[]).find(r=>r.id===reviewId);
+  if(!item) return;
+  item.deferred=true;save();renderSidReview();toast('已暂缓，可稍后继续确认');
+}
+function resumeSidReview(reviewId){
+  const item=(DB.pendingSidReviews||[]).find(r=>r.id===reviewId);
+  if(!item) return;
+  item.deferred=false;save();renderSidReview();
+  const details=document.querySelector('#sidReviewBox details');if(details) details.open=true;
+}
+
 function renderGradeResult(){
   const box=document.getElementById('gradeResultBox');
   if(!DB.students.length){ box.innerHTML=''; return; }
   ensureClassGroups();
   const warnCount=DB.students.filter(s=>s.parseWarn).length;
-  let html='<div class="card"><h2><span class="num">2</span>批改结果</h2>';
+  let html='<div class="card"><h2><span class="num"><i class="ph ph-checks" aria-hidden="true"></i></span>批改结果</h2>';
   html+='<div class="class-tabs">';
   DB.classes.forEach(c=>{
     const count=getStudentsByClass(c.id).length;
@@ -1193,10 +1906,10 @@ function renderGradeResult(){
   html+='</div>';
   const tplCounts=getQCounts();
   if(tplCounts.nTF!==DB.keyTF.length || tplCounts.nCh!==DB.keyChoice.length){
-    html+=`<p class="mini" style="color:var(--gold);font-weight:700;">注意：当前识别按模板题量“判断 ${tplCounts.nTF} 题、选择 ${tplCounts.nCh} 题”定位；标准答案为“判断 ${DB.keyTF.length} 题、选择 ${DB.keyChoice.length} 题”。如果定位标记偏移，请先到「模板」页核对题量。</p>`;
+    html+=`<p class="mini" style="color:var(--gold);font-weight:700;">注意：当前识别按题卡题量“判断 ${tplCounts.nTF} 题、选择 ${tplCounts.nCh} 题”定位；标准答案为“判断 ${DB.keyTF.length} 题、选择 ${DB.keyChoice.length} 题”。如果定位标记偏移，请先到「创建答题卡」核对题量。</p>`;
   }
   if(warnCount){
-    html+=`<p class="mini" style="color:var(--gold);font-weight:700;">⚠ ${warnCount} 名学生识别有异常，已标黄，请点开核对。</p>`;
+    html+=`<p class="mini" style="color:var(--gold);font-weight:700;"><i class="ph ph-warning-circle" aria-hidden="true"></i> ${warnCount} 名学生识别有异常，已标黄，请点开核对。</p>`;
   }
   const ordered=[];
   DB.classes.forEach(c=>{
@@ -1207,12 +1920,12 @@ function renderGradeResult(){
   ordered.forEach(({s,dbIdx})=>{
     const warn=!!s.parseWarn;
     html+=`<div class="stu-item" onclick="toggleDetail(${dbIdx})" style="cursor:pointer;">
-      <span class="nm">${htmlEscape(s.name)}${s.manualEdited?'<span class="manual-tag">已修正</span>':''}<div class="sub">${htmlEscape(getClassName(s.classId))} · ${s.sid?`学号 ${htmlEscape(s.sid)} · `:''}${s.tfCorrect}/${DB.keyTF.length}判 · ${s.choiceCorrect}/${DB.keyChoice.length}选</div></span>
-      ${warn?`<span class="badge warn">⚠</span>`:''}
+      <span class="nm">${htmlEscape(s.name)}${s.manualEdited?'<span class="manual-tag">已修正</span>':''}${s.sidStatus==='roster_corrected'?'<span class="auto-corrected-tag">已自动校正</span>':''}<div class="sub">${htmlEscape(getClassName(s.classId))} · ${s.sid?`学号 ${htmlEscape(s.sid)} · `:''}${s.tfCorrect}/${DB.keyTF.length}判 · ${s.choiceCorrect}/${DB.keyChoice.length}选</div></span>
+      ${warn?`<span class="badge warn"><i class="ph ph-warning" aria-hidden="true"></i></span>`:''}
       <span class="sc" style="color:${s.score>=s.totalScore*0.6?'var(--green)':'var(--red)'}">${s.score}</span>
     </div>
     <div class="detail-box" id="detail-${dbIdx}" style="display:none;">`;
-    if(s.parseWarn) html+=`<p class="mini" style="color:var(--gold);">⚠ ${s.parseWarn}</p>`;
+    if(s.parseWarn) html+=`<p class="mini" style="color:var(--gold);"><i class="ph ph-warning-circle" aria-hidden="true"></i> ${s.parseWarn}</p>`;
     html+=`<div class="edit-panel">
       <div style="font-weight:700;font-size:12px;">人工修正</div>
       <div class="mini">识别不清晰时，可直接修正学号、姓名或答案；保存后会自动重新计分并更新讲评统计。答案中可用“-”表示空白。</div>
@@ -1270,7 +1983,7 @@ function renderGradeResult(){
     // 填涂卡：展示调试图（识别结果可视化）
     if(s.omrDebugImg){
       html+=`<div style="margin-top:10px;font-size:11px;color:var(--mute);">识别核对图（绿色标记=识别为涂黑）</div>
-        <img src="${s.omrDebugImg}" style="width:100%;border:1px solid var(--line);border-radius:6px;margin-top:4px;">`;
+        <img src="${s.omrDebugImg}" alt="${htmlEscape(s.name)}的识别核对图" style="width:100%;border:1px solid var(--line);border-radius:6px;margin-top:4px;">`;
     }else if(s.srcFile){
       html+=`<p class="mini" style="margin-top:8px;color:var(--gold);">本条记录暂无核对图。若页面刷新过，请重新上传该答题卡；系统会优先保留本轮识别生成的核对图。</p>`;
     }
@@ -1343,8 +2056,10 @@ function restoreRecognizedResult(i){
     toast('没有可恢复的原始识别结果');
     return;
   }
-  s.sid=s.rawSid||'';
-  s.name=s.rawName||findRosterNameBySid(s.sid)||'未命名';
+  const keepResolvedSid=s.sidStatus==='roster_corrected' || s.sidStatus==='confirmed';
+  const resolvedSid=s.sid,resolvedName=s.name;
+  s.sid=keepResolvedSid ? resolvedSid : (s.rawSid||'');
+  s.name=keepResolvedSid ? resolvedName : (s.rawName||findRosterNameBySid(s.sid)||'未命名');
   s.tfAns=s.rawTfAns||'';
   s.choiceAns=s.rawChoiceAns||'';
   s.manualEdited=false;
@@ -1359,14 +2074,14 @@ function restoreRecognizedResult(i){
 function renderList(){
   const box=document.getElementById('listBody');
   if(!DB.students.length){
-    box.innerHTML='<div class="card"><div class="empty"><span class="ico">☷</span>还没有成绩</div></div>';
+    box.innerHTML='<div class="card"><div class="empty"><span class="ico"><i class="ph ph-chart-bar" aria-hidden="true"></i></span>还没有成绩</div></div>';
     return;
   }
   ensureClassGroups();
   const active=DB.statsClassId || 'all';
   const scoped=getStudentsByClass(active);
   const ranked=[...scoped].sort((a,b)=>b.score-a.score);
-  let html='<div class="card"><h2><span class="num">☷</span>成绩排名</h2>';
+  let html='<div class="card"><h2><span class="num"><i class="ph ph-ranking" aria-hidden="true"></i></span>成绩排名</h2>';
   html+=renderClassTabs(active);
   if(!ranked.length){
     html+='<div class="empty">这个班级还没有批改记录。</div></div>';
@@ -1377,7 +2092,7 @@ function renderList(){
     const c=s.score>=s.totalScore*0.85?'var(--green)':s.score>=s.totalScore*0.6?'var(--ink)':'var(--red)';
     html+=`<div class="stu-item">
       <span class="badge ${idx<3?'warn':'todo'}">${idx+1}</span>
-      <span class="nm">${htmlEscape(s.name)}${s.manualEdited?'<span class="manual-tag">已修正</span>':''}<div class="sub">${htmlEscape(getClassName(s.classId))}${s.sid?` · 学号 ${htmlEscape(s.sid)}`:''}</div></span>
+      <span class="nm">${htmlEscape(s.name)}${s.manualEdited?'<span class="manual-tag">已修正</span>':''}${s.sidStatus==='roster_corrected'?'<span class="auto-corrected-tag">已自动校正</span>':''}<div class="sub">${htmlEscape(getClassName(s.classId))}${s.sid?` · 学号 ${htmlEscape(s.sid)}`:''}</div></span>
       <span class="sub">${s.tfCorrect+s.choiceCorrect}/${DB.keyTF.length+DB.keyChoice.length}</span>
       <span class="sc" style="color:${c}">${s.score}</span>
     </div>`;
@@ -1481,7 +2196,7 @@ function renderExportButtons(activeId){
 function renderStats(){
   const box=document.getElementById('statsBody');
   if(!DB.students.length){
-    box.innerHTML='<div class="card"><div class="empty"><span class="ico">▦</span>还没有讲评数据。完成批改后，这里会显示成绩单和高频错题。</div></div>';
+    box.innerHTML='<div class="card"><div class="empty"><span class="ico"><i class="ph ph-chart-bar" aria-hidden="true"></i></span><div class="empty-title">暂无批改数据</div><div class="empty-copy">完成答题卡批改后，这里会显示成绩与高频错题。</div></div></div>';
     return;
   }
   ensureClassGroups();
@@ -1524,7 +2239,7 @@ function renderStats(){
   </div>`;
 
   // 每小题得分率
-  html+='<div class="card"><h2><span class="num">▦</span>每小题得分率</h2>';
+  html+='<div class="card"><h2><span class="num"><i class="ph ph-chart-bar-horizontal" aria-hidden="true"></i></span>每小题得分率</h2>';
   function renderQRow(q){
     const pct=Math.round(q.pct*100);
     const color=pct>=80?'var(--green)':pct>=60?'var(--gold)':'var(--red)';
@@ -1549,7 +2264,7 @@ function renderStats(){
 
   // 高频错误讲评清单
   const talkQs=qStats.filter(q=>q.wrongCount>0).sort((a,b)=>b.wrongCount-a.wrongCount || a.pct-b.pct).slice(0,8);
-  html+='<div class="card"><h2><span class="num">!</span>高频错误讲评清单</h2>';
+  html+='<div class="card"><h2><span class="num"><i class="ph ph-warning-circle" aria-hidden="true"></i></span>高频错误讲评清单</h2>';
   if(!talkQs.length){
     html+='<div class="empty">全班本次没有错题记录。</div>';
   }
@@ -1570,7 +2285,7 @@ function renderStats(){
   html+='</div></div>';
 
   const ranked=[...ss].sort((a,b)=>b.score-a.score);
-  html+='<div><div class="card"><h2><span class="num">☷</span>成绩单</h2>';
+  html+='<div><div class="card"><h2><span class="num"><i class="ph ph-list-numbers" aria-hidden="true"></i></span>成绩单</h2>';
   ranked.forEach((s,idx)=>{
     const c=s.score>=s.totalScore*0.85?'var(--green)':s.score>=s.totalScore*0.6?'var(--ink)':'var(--red)';
     html+=`<div class="stu-item">
@@ -1661,9 +2376,9 @@ function exportCSV(scopeId){
 }
 function clearStudents(){
   if(!confirm('清空所有批改记录？标准答案和名册会保留。')) return;
-  DB.students=[]; save();
+  DB.students=[]; DB.pendingSidReviews=[]; save();
   const fs=document.getElementById('fileStatus'); if(fs) fs.innerHTML='';
-  renderClassUploads(); renderGradeResult(); renderList(); renderStats(); renderSetupCheck();
+  renderClassUploads(); renderSidReview(); renderGradeResult(); renderList(); renderStats(); renderSetupCheck();
   toast('已清空批改记录');
 }
 
@@ -1676,6 +2391,7 @@ function renderClassUploads(){
   DB.classes.forEach((c,idx)=>{
     const inputId=`omrInput_${c.id}`;
     const count=getStudentsByClass(c.id).length;
+    const pending=(DB.pendingSidReviews||[]).filter(item=>item.classId===c.id).length;
     html+=`<div class="class-upload-card">
       <div class="class-upload-head">
         <input type="text" value="${htmlEscape(c.name)}" aria-label="班级名称" onchange="renameClass('${c.id}',this.value)">
@@ -1684,12 +2400,12 @@ function renderClassUploads(){
         </div>
       </div>
       <div class="drop" onclick="document.getElementById('${inputId}').click()">
-        <span class="di">📷</span>
+        <span class="di"><i class="ph ph-image-square" aria-hidden="true"></i></span>
         <div class="dt">上传 ${htmlEscape(c.name)} 答题卡</div>
         <div class="ds">可一次选择多张图片或多个 PDF</div>
       </div>
       <input type="file" id="${inputId}" accept="image/*,.pdf,application/pdf" multiple style="display:none" onchange="handleOMRFilesForClass(this.files,'${c.id}',this)">
-      <div class="class-count">${count ? `已批改 ${count} 人` : '还未上传答题卡'}</div>
+      <div class="class-count">${count ? `已批改 ${count} 人` : '还未生成成绩'}${pending?` · 待确认 ${pending} 张`:''}</div>
     </div>`;
   });
   html+='</div><div class="class-add-row"><button class="btn-ghost" onclick="addClassGroup()">+ 添加班级</button></div>';
@@ -1724,10 +2440,12 @@ function deleteClassGroup(classId){
   }
   const c=getClassById(classId);
   const count=getStudentsByClass(classId).length;
-  const msg=count ? `删除 ${c.name}？该班 ${count} 条批改记录也会一起删除。` : `删除 ${c.name}？`;
+  const pending=(DB.pendingSidReviews||[]).filter(item=>item.classId===classId).length;
+  const msg=(count||pending) ? `删除 ${c.name}？该班 ${count} 条批改记录和 ${pending} 条待确认记录也会一起删除。` : `删除 ${c.name}？`;
   if(!confirm(msg)) return;
   DB.classes=DB.classes.filter(item=>item.id!==classId);
   DB.students=DB.students.filter(s=>s.classId!==classId);
+  DB.pendingSidReviews=DB.pendingSidReviews.filter(item=>item.classId!==classId);
   if(DB.statsClassId===classId) DB.statsClassId='all';
   save();
   renderClassUploads();
@@ -1804,9 +2522,12 @@ function handleRosterFile(file){
         toast('未识别到任何学生，请确认第一列学号、第二列姓名');
         return;
       }
-      DB.roster=roster; save();
+      DB.roster=roster;
+      const corrected=reconcilePendingSidReviews();
+      save();
       renderRoster();
-      toast(`已导入 ${roster.length} 名学生`);
+      renderSidReview();renderClassUploads();renderGradeResult();renderList();renderStats();
+      toast(`已导入 ${roster.length} 名学生${corrected?`，自动补全 ${corrected} 张`:''}`);
     }catch(err){
       toast('Excel 解析失败：'+(err.message||err));
     }
@@ -1825,9 +2546,12 @@ function handleRosterPaste(){
     toast('未识别到任何学生，请检查格式');
     return;
   }
-  DB.roster=roster; save();
+  DB.roster=roster;
+  const corrected=reconcilePendingSidReviews();
+  save();
   renderRoster();
-  toast(`已导入 ${roster.length} 名学生`);
+  renderSidReview();renderClassUploads();renderGradeResult();renderList();renderStats();
+  toast(`已导入 ${roster.length} 名学生${corrected?`，自动补全 ${corrected} 张`:''}`);
 }
 function renderRoster(){
   const cnt=document.getElementById('rosterCount');
@@ -1954,7 +2678,7 @@ function buildTemplateSVG(){
   const bubbleR=M.bubbleR;
   const tplTitle=normalizeTemplateTitle(DB.tplTitle);
   const titleFont=Math.max(12, Math.min(M.titleFont, Math.floor(460 / Math.max(1, tplTitle.length))));
-  let svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" style="background:#fff;font-family:'Helvetica','Noto Sans SC',sans-serif;">`;
+  let svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" style="background:#fff;font-family:'Noto Sans SC',Arial,sans-serif;">`;
 
   // 四角定位方块
   const corners=[
@@ -2054,7 +2778,7 @@ function buildTemplateSVG(){
   }
 
   // 底部版权
-  svg+=`<text x="${W/2}" y="${H-marginY+10}" text-anchor="middle" font-size="7.5" fill="#bbb">© WuYue · 客观题批改助手</text>`;
+  svg+=`<text x="${W/2}" y="${H-marginY+10}" text-anchor="middle" font-size="7.5" fill="#bbb">© WuYue · 题卡快批</text>`;
 
   svg+='</svg>';
   return svg;
@@ -2066,7 +2790,7 @@ function buildTemplateSheetSVG(n){
   const cellW=layout.pageW/layout.cols;
   const cellH=layout.pageH/layout.rows;
   const inner=cardInnerSVG();
-  let svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${layout.pageW} ${layout.pageH}" width="${layout.pageW}" height="${layout.pageH}" style="background:#fff;font-family:'Helvetica','Noto Sans SC',sans-serif;">`;
+  let svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${layout.pageW} ${layout.pageH}" width="${layout.pageW}" height="${layout.pageH}" style="background:#fff;font-family:'Noto Sans SC',Arial,sans-serif;">`;
   svg+=`<rect x="0" y="0" width="${layout.pageW}" height="${layout.pageH}" fill="#fff"/>`;
   for(let i=0;i<layout.n;i++){
     const r=Math.floor(i/layout.cols), c=i%layout.cols;
@@ -2101,13 +2825,18 @@ function syncTemplateControls(){
   if(tf) tf.value = DB.tplTFCount==='' ? '' : normalizeTemplateCountValue(DB.tplTFCount, DB.keyTF.length||8, 80);
   if(ch) ch.value = DB.tplChoiceCount==='' ? '' : normalizeTemplateCountValue(DB.tplChoiceCount, DB.keyChoice.length||20, 120);
   renderTemplateCountHint();
+  renderTemplateMeta();
 }
 function renderTemplateCountHint(){
   const hint=document.getElementById('tplCountHint');
-  if(hint){
-    const {nTF,nCh}=getQCounts();
-    hint.textContent=`当前模板：判断题 ${nTF} 题，选择题 ${nCh} 题，共 ${nTF+nCh} 题。`;
-  }
+  const total=document.getElementById('tplTotalCount');
+  const {nTF,nCh}=getQCounts();
+  if(hint) hint.textContent=`判断题 ${nTF} 题，选择题 ${nCh} 题，共 ${nTF+nCh} 题。`;
+  if(total) total.textContent=`共 ${nTF+nCh} 题`;
+}
+function renderTemplateMeta(){
+  const meta=document.getElementById('tplPreviewMeta');
+  if(meta) meta.textContent=`A4 · 每页 ${normalizePerPage(DB.perPage)} 张`;
 }
 function downloadTemplateSVG(){
   const n=normalizePerPage(DB.perPage);
@@ -2155,11 +2884,11 @@ function setPerPage(n){
     document.getElementById('ppBtn'+k).classList.toggle('on', k===n);
   });
   const hints={
-    1:'每张答题卡占满整页 A4（纵向），识别精度最高。',
-    2:'默认推荐：A4 横向打印，两张左右并排；裁开后上传单张识别。',
-    4:'A4 纵向 4 张，适合题量较少的日常练习。',
-    6:'A4 纵向 6 张，卡片会留出空白以保持识别比例一致。',
-    8:'A4 横向 8 张，适合非常短的小练习；裁开后再扫描上传。',
+    1:'A4 每页 1 张，无需裁切。',
+    2:'A4 每页 2 张，打印后沿裁切线分开。',
+    4:'A4 每页 4 张，适合题量较少的练习。',
+    6:'A4 每页 6 张，适合短练习。',
+    8:'A4 每页 8 张，适合极短练习。',
   };
   document.getElementById('ppHint').textContent=hints[n]||hints[2];
   syncTemplateControls();
@@ -2680,10 +3409,15 @@ function rectifyCardCanvas(srcCanvas, fids){
     }
   }
   dstCtx.putImageData(dstData,0,0);
+  // 学号区需要保留很浅的 2B 铅笔灰度；答案区仍使用增强图提升填涂对比度。
+  const sidCanvas=document.createElement('canvas');
+  sidCanvas.width=outW;sidCanvas.height=outH;
+  sidCanvas.getContext('2d').putImageData(dstData,0,0);
   enhanceScanCanvas(dst);
   const makePoint=p=>({x:p.x*scale, y:p.y*scale, count:1, bw:1, bh:1, fill:1, normalized:true});
   return {
     canvas:dst,
+    sidCanvas,
     scale,
     fids:{
       TL:makePoint(tplCorners[0]),
@@ -2709,6 +3443,16 @@ function getSampleSpec(bubbleR, pxPerPt, shapeOverride){
   return {shape:'circle', r, drawR:r};
 }
 
+// 学号框内印有数字，采样区进一步内缩以排除边框；识别时侧重“成片铅笔灰度”，
+// 避免把印刷数字本身当作填涂。
+function getSidSampleSpec(bubbleR, pxPerPt, shapeOverride){
+  const base=getSampleSpec(bubbleR,pxPerPt,shapeOverride);
+  if(base.shape==='rect'){
+    return {...base,sampleW:base.sampleW*.82,sampleH:base.sampleH*.72};
+  }
+  return {...base,r:base.r*.82};
+}
+
 function sampleContains(spec, dx, dy){
   if(spec.shape==='rect'){
     return Math.abs(dx)<=spec.sampleW/2 && Math.abs(dy)<=spec.sampleH/2;
@@ -2717,7 +3461,7 @@ function sampleContains(spec, dx, dy){
 }
 
 // 长方框只允许小范围微调，避免吸到题号、标题或相邻选项。
-function sampleBubbleMark(imgData, w, h, cx, cy, spec, searchRadius){
+function sampleBubbleMark(imgData, w, h, cx, cy, spec, searchRadius, profile='ink'){
   const data=imgData.data;
   const rx=spec.shape==='rect' ? Math.max(2, Math.round(spec.sampleW/2)) : Math.max(3, Math.round(spec.r));
   const ry=spec.shape==='rect' ? Math.max(2, Math.round(spec.sampleH/2)) : rx;
@@ -2732,10 +3476,10 @@ function sampleBubbleMark(imgData, w, h, cx, cy, spec, searchRadius){
       }
     }
   }
-  let best={gray:255, score:0, rawScore:0, darkRatio:0, sx:cx, sy:cy, dist:0};
+  let best={gray:255,score:0,rawScore:0,fillScore:0,rawFillScore:0,darkRatio:0,softRatio:0,midToneRatio:0,coverage:0,sx:cx,sy:cy,dist:0};
   offsets.forEach(o=>{
     const tx=cx+o.x, ty=cy+o.y;
-    let sum=0, cnt=0, dark=0, veryDark=0;
+    let sum=0, cnt=0, dark=0, veryDark=0, soft=0, midTone=0, cappedDarkness=0;
     const x0=Math.max(0,Math.round(tx-rx)), x1=Math.min(w,Math.round(tx+rx));
     const y0=Math.max(0,Math.round(ty-ry)), y1=Math.min(h,Math.round(ty+ry));
     for(let y=y0;y<y1;y++){
@@ -2747,6 +3491,9 @@ function sampleBubbleMark(imgData, w, h, cx, cy, spec, searchRadius){
           sum+=g; cnt++;
           if(g<165) dark++;
           if(g<115) veryDark++;
+          if(g<228) soft++;
+          if(g>=85 && g<225) midTone++;
+          cappedDarkness+=Math.min(90,Math.max(0,230-g));
         }
       }
     }
@@ -2754,12 +3501,20 @@ function sampleBubbleMark(imgData, w, h, cx, cy, spec, searchRadius){
     const gray=sum/cnt;
     const darkRatio=dark/cnt;
     const veryDarkRatio=veryDark/cnt;
+    const softRatio=soft/cnt;
+    const midToneRatio=midTone/cnt;
+    const coverage=cappedDarkness/cnt;
     const darkness=Math.max(0, 235-gray);
     const rawScore=darkness + darkRatio*95 + veryDarkRatio*55;
+    // 铅笔填涂通常形成大面积中灰或深灰；印刷数字只占很窄的黑色笔画。
+    const rawFillScore=coverage*1.45 + softRatio*80 + midToneRatio*115 + darkRatio*25;
     const dist=Math.sqrt(o.x*o.x+o.y*o.y);
     const score=rawScore - (dist/Math.max(1,sr))*34;
-    if(score>best.score){
-      best={gray, score, rawScore, darkRatio, sx:tx, sy:ty, dist};
+    const fillScore=rawFillScore - (dist/Math.max(1,sr))*14;
+    const selectionScore=profile==='fill'?fillScore:score;
+    const bestSelectionScore=profile==='fill'?best.fillScore:best.score;
+    if(selectionScore>bestSelectionScore){
+      best={gray,score,rawScore,fillScore,rawFillScore,darkRatio,softRatio,midToneRatio,coverage,sx:tx,sy:ty,dist};
     }
   });
   return best;
@@ -2774,6 +3529,29 @@ function drawDebugMark(ctx, b, spec, filled){
     ctx.arc(b.sx, b.sy, spec.drawR, 0, Math.PI*2);
   }
   ctx.stroke();
+}
+
+function templateRegionPreview(canvas,H_mat,rect,maxWidth=720,maxHeight=180,quality=.78){
+  const corners=[
+    applyH(H_mat,rect.x,rect.y),
+    applyH(H_mat,rect.x+rect.w,rect.y),
+    applyH(H_mat,rect.x,rect.y+rect.h),
+    applyH(H_mat,rect.x+rect.w,rect.y+rect.h)
+  ];
+  const pad=8;
+  const minX=Math.max(0,Math.floor(Math.min(...corners.map(p=>p.x))-pad));
+  const maxX=Math.min(canvas.width,Math.ceil(Math.max(...corners.map(p=>p.x))+pad));
+  const minY=Math.max(0,Math.floor(Math.min(...corners.map(p=>p.y))-pad));
+  const maxY=Math.min(canvas.height,Math.ceil(Math.max(...corners.map(p=>p.y))+pad));
+  const sourceW=Math.max(1,maxX-minX), sourceH=Math.max(1,maxY-minY);
+  const scale=Math.min(1,maxWidth/sourceW,maxHeight/sourceH);
+  const crop=document.createElement('canvas');
+  crop.width=Math.max(1,Math.round(sourceW*scale));
+  crop.height=Math.max(1,Math.round(sourceH*scale));
+  const cropCtx=crop.getContext('2d');
+  cropCtx.fillStyle='#fff';cropCtx.fillRect(0,0,crop.width,crop.height);
+  cropCtx.drawImage(canvas,minX,minY,sourceW,sourceH,0,0,crop.width,crop.height);
+  return crop.toDataURL('image/jpeg',quality);
 }
 
 // 主入口：识别一张图
@@ -2799,6 +3577,7 @@ async function recognizeOMR(file){
   const canvas=normalized.canvas;
   const ctx=canvas.getContext('2d');
   const imgData=ctx.getImageData(0,0,canvas.width,canvas.height);
+  const sidImgData=normalized.sidCanvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height);
   const fids=normalized.fids;
   const cw=canvas.width, ch=canvas.height;
 
@@ -2825,17 +3604,23 @@ async function recognizeOMR(file){
   const positions=computeBubblePositions('template', activeShape);
   const M=getTemplateMetrics('template', activeShape);
   const sampleSpec=getSampleSpec(positions.bubbleR, pxPerPt, activeShape);
+  const sidSampleSpec=getSidSampleSpec(positions.bubbleR, pxPerPt, activeShape);
   const maxSearchPt = Math.min(M.chOptGap, M.tfOptGap) * 0.44;
   const searchR = activeShape==='rect'
     ? Math.max(2, Math.min(10, sampleSpec.drawH*0.48))
     : Math.max(3, Math.min(positions.bubbleR * 0.95, maxSearchPt) * pxPerPt);
+  const sidSearchR=activeShape==='rect'
+    ? Math.max(1,Math.min(4,sidSampleSpec.drawH*.2))
+    : Math.max(2,Math.min(5,sidSampleSpec.drawR*.35));
 
   // 收集所有填涂框灰度
   const allBubbles=[];
   function add(pos, tag){
     const p=applyH(H_mat, pos.cx, pos.cy);
-    const mark=sampleBubbleMark(imgData, cw, ch, p.x, p.y, sampleSpec, searchR);
-    allBubbles.push({...pos, tag, gray:mark.gray, score:mark.score, rawScore:mark.rawScore, darkRatio:mark.darkRatio, sx:mark.sx, sy:mark.sy, baseX:p.x, baseY:p.y, dist:mark.dist});
+    const isSid=tag.startsWith('sid');
+    const spec=isSid?sidSampleSpec:sampleSpec;
+    const mark=sampleBubbleMark(isSid?sidImgData:imgData,cw,ch,p.x,p.y,spec,isSid?sidSearchR:searchR,isSid?'fill':'ink');
+    allBubbles.push({...pos,tag,...mark,sidScore:mark.fillScore,spec,baseX:p.x,baseY:p.y});
     return mark.gray;
   }
   // 学号
@@ -2893,23 +3678,40 @@ async function recognizeOMR(file){
   // 5. 解码学号
   let sid='';
   let sidWarn=false;
+  const sidEvidence=[];
   for(let c=0;c<positions.sid.length;c++){
-    let pick=-1, bestScore=-1, secondScore=-1;
-    for(let d=0;d<positions.sid[c].length;d++){
-      const b=allBubbles.find(b=>b.tag===`sid${c}${d}`);
-      if(b.score>bestScore){ secondScore=bestScore; bestScore=b.score; pick=d; }
-      else if(b.score>secondScore){ secondScore=b.score; }
-    }
-    const first=allBubbles.find(b=>b.tag===`sid${c}${pick}`);
-    const second={score:secondScore, gray:255};
-    if(first && (isFilledBubble(first) || isProminentSingle(first, second)) && (bestScore-secondScore>Math.max(18, bestScore*0.12) || !isFilledBubble(second))){
-      sid+=pick;
-      recognizedTags.add(`sid${c}${pick}`);
-    }else if(first && isFilledBubble(first) && isFilledBubble(second)){
-      sid+='?'; sidWarn=true; // 多涂
+    const ranked=positions.sid[c].map((_,d)=>({
+      ...allBubbles.find(b=>b.tag===`sid${c}${d}`),digit:d
+    })).sort((a,b)=>b.sidScore-a.sidScore);
+    const first=ranked[0], second=ranked[1];
+    const bestScore=first ? first.sidScore : 0;
+    const secondScore=second ? second.sidScore : 0;
+    const columnScores=ranked.map(item=>item.sidScore).sort((a,b)=>a-b);
+    const columnMedian=columnScores[Math.floor(columnScores.length/2)]||0;
+    const gap=Math.max(0,bestScore-secondScore);
+    const spread=Math.max(0,bestScore-columnMedian);
+    const strongMark=!!(first && (first.softRatio>=.28 || first.coverage>=24 || first.darkRatio>=.24) && spread>=10);
+    const clearGap=!!(first && gap>=Math.max(7,spread*.2));
+    const highConfidence=strongMark && clearGap;
+    const signal=Math.max(0,Math.min(1,spread/Math.max(14,columnMedian*.28)));
+    const separation=Math.max(0,Math.min(1,gap/Math.max(8,spread*.35)));
+    const confidence=Math.round(Math.max(0,Math.min(1,.45*signal+.55*separation))*1000)/1000;
+    let value='_';
+    if(highConfidence){
+      value=String(first.digit);
+      sid+=value;
+      recognizedTags.add(`sid${c}${first.digit}`);
+    }else if(first && strongMark && second && second.softRatio>=.28 && second.sidScore-columnMedian>=10){
+      value='?'; sid+=value; sidWarn=true; // 多涂
     }else{
-      sid+='_'; sidWarn=true; // 未涂
+      sid+=value; sidWarn=true; // 未涂
     }
+    sidEvidence.push({
+      position:c,value,confidence,highConfidence,
+      top1:first?{digit:first.digit,score:Math.round(first.sidScore*100)/100}:null,
+      top2:second?{digit:second.digit,score:Math.round(second.sidScore*100)/100}:null,
+      digitScores:ranked.map(item=>({digit:item.digit,score:Math.round(item.sidScore*100)/100}))
+    });
   }
 
   // 6. 解码判断题
@@ -2942,7 +3744,7 @@ async function recognizeOMR(file){
   dctx.drawImage(canvas,0,0);
   dctx.lineWidth=2;
   allBubbles.forEach(b=>{
-    drawDebugMark(dctx, b, sampleSpec, recognizedTags.has(b.tag));
+    drawDebugMark(dctx,b,b.spec||sampleSpec,recognizedTags.has(b.tag));
   });
   // 画四角
   dctx.fillStyle='rgba(52,96,125,0.5)';
@@ -2956,7 +3758,31 @@ async function recognizeOMR(file){
   dbgSmall.getContext('2d').drawImage(dbgCanvas,0,0,dbgSmall.width,dbgSmall.height);
   const debugImg=dbgSmall.toDataURL('image/jpeg', 0.6);
 
-  return {sid, sidWarn, tfAns, chAns, debugImg};
+  // 姓名栏是教师确认身份的主要人工证据；学号识别只负责缩小名册候选。
+  const sidX=marginX+20;
+  const infoTop=marginY+22+M.titleFont;
+  const sidMatrixBottom=infoTop+28+(TPL.sidDigits-1)*M.sidRowH+positions.bubbleR+4;
+  const infoRowH=(sidMatrixBottom-infoTop)/3;
+  const rightX=sidX+TPL.sidCols*M.sidColW+18;
+  const nameCropImg=templateRegionPreview(canvas,H_mat,{
+    x:rightX-5,y:infoTop-4,w:W-marginX-rightX+5,h:infoRowH+8
+  });
+
+  // 学号区域保留为辅助证据，界面默认展示姓名栏。
+  const sidMarks=allBubbles.filter(b=>b.tag.startsWith('sid'));
+  const minSidX=Math.max(0,Math.floor(Math.min(...sidMarks.map(b=>b.sx))-sampleSpec.drawW*2.2));
+  const maxSidX=Math.min(cw,Math.ceil(Math.max(...sidMarks.map(b=>b.sx))+sampleSpec.drawW*2.2));
+  const minSidY=Math.max(0,Math.floor(Math.min(...sidMarks.map(b=>b.sy))-sampleSpec.drawH*2.2));
+  const maxSidY=Math.min(ch,Math.ceil(Math.max(...sidMarks.map(b=>b.sy))+sampleSpec.drawH*2.2));
+  const crop=document.createElement('canvas');
+  const cropW=Math.max(1,maxSidX-minSidX), cropH=Math.max(1,maxSidY-minSidY);
+  const cropScale=Math.min(1,560/cropW);
+  crop.width=Math.max(1,Math.round(cropW*cropScale));
+  crop.height=Math.max(1,Math.round(cropH*cropScale));
+  crop.getContext('2d').drawImage(canvas,minSidX,minSidY,cropW,cropH,0,0,crop.width,crop.height);
+  const sidCropImg=crop.toDataURL('image/jpeg',.72);
+
+  return {sid, sidWarn, sidEvidence, sidCropImg, nameCropImg, tfAns, chAns, debugImg};
 }
 function loadImage(file){
   return new Promise((resolve,reject)=>{
@@ -3014,6 +3840,37 @@ async function handleCameraFiles(files,input){
   }
 }
 
+function studentFromRecognition(r,src,classId,resolution){
+  const sid=resolution.sid;
+  const rosterName=findRosterNameBySid(sid);
+  const student={
+    id:Date.now()+Math.random(),classId,sid,
+    sidStatus:resolution.status,
+    sidEvidence:r.sidEvidence||[],
+    name:rosterName || (`学号 ${sid}`),
+    tfAns:r.tfAns,choiceAns:r.chAns,parseWarn:'',omrDebugImg:r.debugImg,
+    srcFile:src.label,unmatched:DB.roster.length ? !rosterName : false,
+    rawSid:r.sid,rawName:rosterName || (`学号 ${sid}`),rawTfAns:r.tfAns,rawChoiceAns:r.chAns,
+    rawSaved:true,manualEdited:false
+  };
+  const warns=[];
+  if(DB.roster.length && !rosterName) warns.push('名册中未找到该学号');
+  student.scanWarn=warns.join('；');
+  regrade(student);
+  return student;
+}
+
+function pendingReviewFromRecognition(r,src,classId,resolution){
+  return {
+    id:'review_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8),
+    classId,status:'needs_review',recognizedSid:r.sid,sidEvidence:r.sidEvidence||[],
+    candidates:resolution.candidates||[],sidCropImg:r.sidCropImg||'',nameCropImg:r.nameCropImg||'',
+    omrDebugImg:r.debugImg||'',
+    tfAns:r.tfAns,choiceAns:r.chAns,srcFile:src.label,deferred:false,
+    createdAt:new Date().toISOString()
+  };
+}
+
 async function handleOMRFiles(files,classId){
   if(!files || !files.length) return;
   if(!validateOMRReady()) return;
@@ -3022,12 +3879,9 @@ async function handleOMRFiles(files,classId){
   classId=targetClass.id;
 
   const status=document.getElementById('fileStatus');
-  status.innerHTML=`<div class="filechip"><span class="fx">📷</span>
+  status.innerHTML=`<div class="filechip"><span class="fx"><i class="ph ph-image-square" aria-hidden="true"></i></span>
     <span style="flex:1">${htmlEscape(targetClass.name)}：共 ${files.length} 个文件，正在展开…</span>
     <span><span class="loading"></span></span></div>`;
-
-  const rosterMap={};
-  DB.roster.forEach(r=>{ rosterMap[r.id]=r.name; });
 
   // 把每个上传文件展开（PDF→多页图片，图片→自身）
   const allSources=[];
@@ -3041,12 +3895,14 @@ async function handleOMRFiles(files,classId){
   }
 
   const newStudents=[];
-  let okCount=0, failCount=0;
+  const newReviews=[];
+  const claimedSids=new Set(getStudentsByClass(classId).map(s=>normalizeRosterSid(s.sid)).filter(Boolean));
+  let recognizedCount=0, correctedCount=0, reviewCount=0, failCount=0;
   const failures=[];
 
   for(let idx=0;idx<allSources.length;idx++){
     const src=allSources[idx];
-    status.innerHTML=`<div class="filechip"><span class="fx">📷</span>
+    status.innerHTML=`<div class="filechip"><span class="fx"><i class="ph ph-image-square" aria-hidden="true"></i></span>
       <span style="flex:1">${htmlEscape(targetClass.name)}：${htmlEscape(src.label)}</span>
       <span><span class="loading"></span>${idx+1}/${allSources.length}</span></div>`;
     if(src.expandError){
@@ -3054,38 +3910,16 @@ async function handleOMRFiles(files,classId){
     }
     try{
       const r=await recognizeOMR(src.blob);
-      const cleanSid=r.sid.replace(/^0+/,'') || r.sid;
-      let matchedName = rosterMap[r.sid] || rosterMap[cleanSid] || null;
-      if(!matchedName && !/[_?]/.test(r.sid)){
-        for(const k of Object.keys(rosterMap)){
-          if(k.replace(/^0+/,'')===cleanSid){ matchedName=rosterMap[k]; break; }
-        }
+      const resolution=resolveSidWithRoster(r.sid,r.sidEvidence,claimedSids);
+      if(resolution.status==='needs_review'){
+        newReviews.push(pendingReviewFromRecognition(r,src,classId,resolution));
+        reviewCount++;
+      }else{
+        newStudents.push(studentFromRecognition(r,src,classId,resolution));
+        claimedSids.add(normalizeRosterSid(resolution.sid));
+        if(resolution.status==='roster_corrected') correctedCount++;
+        else recognizedCount++;
       }
-      const student={
-        id:Date.now()+Math.random(),
-        classId,
-        sid:r.sid,
-        name: matchedName || (`学号 ${r.sid}`),
-        tfAns:r.tfAns,
-        choiceAns:r.chAns,
-        parseWarn: '',
-        omrDebugImg: r.debugImg,
-        srcFile: src.label,
-        unmatched: DB.roster.length ? !matchedName : false,
-        rawSid:r.sid,
-        rawName:matchedName || (`学号 ${r.sid}`),
-        rawTfAns:r.tfAns,
-        rawChoiceAns:r.chAns,
-        rawSaved:true,
-        manualEdited:false,
-      };
-      const warns=[];
-      if(r.sidWarn) warns.push('学号涂卡异常（含 ? 或 _）');
-      if(DB.roster.length && !matchedName) warns.push('名册中未找到该学号');
-      student.scanWarn=warns.join('；');
-      regrade(student);
-      newStudents.push(student);
-      okCount++;
     }catch(err){
       failCount++;
       failures.push(`${src.label}：${err.message||err}`);
@@ -3104,22 +3938,27 @@ async function handleOMRFiles(files,classId){
     byKey[k]=mergeStudentRecord(byKey[k],s);
   });
   DB.students = Object.values(byKey);
+  // 同一班级同一来源重新上传时，以本次识别结论覆盖旧的待确认项。
+  const replacedSources=new Set(allSources.map(src=>`${classId}::${src.label}`));
+  DB.pendingSidReviews=(DB.pendingSidReviews||[]).filter(item=>!replacedSources.has(`${item.classId}::${item.srcFile}`));
+  DB.pendingSidReviews.push(...newReviews);
   save();
 
   let html=`<div class="filechip" style="background:rgba(47,158,115,.1);">
     <span class="fx" style="background:var(--green)">✓</span>
-    <span style="flex:1">${htmlEscape(targetClass.name)}：成功识别 ${okCount} 张</span>`;
+    <span style="flex:1">${htmlEscape(targetClass.name)}：完整识别 ${recognizedCount} 张 · 自动补全 ${correctedCount} 张${reviewCount?` · 待确认 ${reviewCount} 张`:''}</span>`;
   if(failCount) html+=`<span style="color:var(--red);font-weight:700">失败 ${failCount}</span>`;
   html+='</div>';
   if(failures.length){
     html+=`<div class="mini" style="color:var(--red);margin-top:6px;">${failures.map(htmlEscape).join('<br>')}</div>`;
   }
   status.innerHTML=html;
-  toast(`${targetClass.name} 已处理 ${okCount} 张`);
+  toast(`${targetClass.name} 已处理 ${recognizedCount+correctedCount+reviewCount} 张`);
   renderClassUploads();
   renderSetupCheck();
+  renderSidReview();
   renderGradeResult();
-  document.getElementById('gradeResultBox').scrollIntoView({behavior:'smooth'});
+  document.getElementById(reviewCount?'sidReviewBox':'gradeResultBox').scrollIntoView({behavior:'smooth'});
 }
 
 /* ==================== 初始化 ==================== */
@@ -3140,11 +3979,14 @@ async function handleOMRFiles(files,classId){
   setMode(DB.mode || 'omr');
   // 应用每页布局，默认 2 张/页
   setPerPage(normalizePerPage(DB.perPage||2));
+  // 老版本曾把残缺学号直接作为学生保存；升级后统一转入名册补全或待确认队列。
+  migrateLegacyIncompleteStudents();
   // 名册 tab 初始化
   setRosterTab('xlsx');
   // 渲染名册
   renderRoster();
   renderClassUploads();
+  renderSidReview();
   renderSetupCheck();
   // 拖拽（.docx）
   const dz=document.getElementById('dropZone');
