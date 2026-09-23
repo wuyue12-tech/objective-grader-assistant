@@ -245,6 +245,7 @@
   }
   button.wrong-pill{border:0;line-height:1.45;}
   button.wrong-pill:hover,button.wrong-pill:focus-visible{background:rgba(220,90,66,.2);}
+  .wrong-options{display:inline-flex;align-items:center;flex-wrap:wrap;gap:5px;}
   .wrong-tooltip{
     position:absolute;left:0;top:calc(100% + 7px);z-index:20;width:max-content;max-width:min(360px,calc(100vw - 48px));
     padding:9px 10px;border:1px solid var(--color-error-border);border-radius:var(--radius-md);
@@ -2180,8 +2181,7 @@ function buildQuestionStats(students){
       if(!names[k]) names[k]=[];
       names[k].push(s.name + (s.sid ? `(${s.sid})` : ''));
     });
-    const wrongEntries=Object.entries(wrong).sort((a,b)=>b[1]-a[1]);
-    const main=wrongEntries[0]||['',0];
+    const wrongEntries=Object.entries(wrong).sort((a,b)=>b[1]-a[1] || a[0].localeCompare(b[0]));
     out.push({
       qIdx,type,key,
       label:questionLabel(type,qIdx),
@@ -2189,9 +2189,7 @@ function buildQuestionStats(students){
       pct:n?right/n:0,
       wrongCount:n-right,
       wrongEntries,
-      mainWrong:main[0],
-      mainWrongCount:main[1],
-      mainWrongNames:names[main[0]]||[],
+      wrongNames:names,
     });
   }
   for(let i=0;i<DB.keyTF.length;i++) add(i,'tf',DB.keyTF[i]);
@@ -2290,11 +2288,14 @@ function renderStats(){
     const color=pct>=80?'var(--green)':pct>=60?'var(--gold)':'var(--red)';
     let tw='';
     if(q.wrongEntries.length){
-      const [opt,cnt]=q.wrongEntries[0];
-      const show=answerShow(q.type,opt==='空'?'':opt);
-      const tipId=`wrong-${q.type}-${q.qIdx}`;
-      const names=q.mainWrongNames.map(htmlEscape).join('、');
-      tw=`<button type="button" class="wrong-pill" aria-describedby="${tipId}" aria-label="错选 ${show}，${cnt}人，悬浮或聚焦查看名单">错选 ${show}（${cnt}人）<span class="wrong-tooltip" id="${tipId}" role="tooltip"><strong>错选 ${show} 的学生</strong>${names}</span></button>`;
+      tw='<span class="wrong-options">'+q.wrongEntries.map(([opt,cnt],wrongIdx)=>{
+        const blank=opt==='空';
+        const label=blank ? '未作答' : `错选 ${answerShow(q.type,opt)}`;
+        const tooltipTitle=blank ? '未作答的学生' : `${label} 的学生`;
+        const tipId=`wrong-${q.type}-${q.qIdx}-${wrongIdx}`;
+        const names=(q.wrongNames[opt]||[]).map(htmlEscape).join('、');
+        return `<button type="button" class="wrong-pill" aria-describedby="${tipId}" aria-label="${label}，${cnt}人，悬浮或聚焦查看名单">${label}（${cnt}人）<span class="wrong-tooltip" id="${tipId}" role="tooltip"><strong>${tooltipTitle}</strong>${names}</span></button>`;
+      }).join('')+'</span>';
     }
     const keyShow=answerShow(q.type,q.key);
     return `<div class="qbar">
@@ -2303,7 +2304,7 @@ function renderStats(){
         <span class="pct" style="color:${color}">${pct}%</span>
       </div>
       <div class="track"><div class="fill" style="width:${pct}%;background:${color}"></div></div>
-      <div class="meta">${q.right}/${n} 答对 ${tw}</div>
+      <div class="meta"><span>${q.right}/${n} 答对${q.wrongCount?` · 共错 ${q.wrongCount} 人`:''}</span>${tw}</div>
     </div>`;
   }
   qStats.forEach(q=>html+=renderQRow(q));
